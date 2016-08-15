@@ -1,10 +1,12 @@
 (ns overtime.sound-control
   (:require [overtone.core :as ot]
             [overtime.microsound :as micro]
-            [overtime.fx :as fx]))
+            [overtime.fx :as fx]
+            [overtime.utils :as u]))
 
 
 (defonce ^:private sound-defs (atom {}))
+
 (defn- param-data
   [key data]
   (case key
@@ -26,4 +28,4 @@
   [sound-defs-data]
   (swap! sound-defs merge (into {} (for [[sound-def-key sound-def-data] sound-defs-data] (define-sound sound-def-key sound-def-data)))))
 
-(defn sound-def [key] (key @sound-defs))
+(defn sound-def [key] (u/check-nil (key @sound-defs) "Sound Def" key))

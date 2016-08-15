@@ -1,15 +1,16 @@
 (ns overtime.microsound
   (:require [overtone.core :as ot]
             [overtime.shapes :as shapes]
-            [overtime.probability :as prob]))
+            [overtime.probability :as prob]
+            [overtime.utils :as u]))
 
 
 (defonce ^:private random-density-range (atom [2 20]))
 (defonce ^:private env-bufs (atom {}))
-(defonce ^:private trigger-busses (atom {}))
-(defonce ^:private triggers (atom {}))
-(defonce ^:private pan-busses (atom {}))
-(defonce ^:private pans (atom {}))
+(defonce ^:private triggers-pans (atom {:triggers       {}
+                                        :trigger-busses {}
+                                        :pans           {}
+                                        :pan-busses     {}}))
 
 
 ;
@@ -134,7 +135,11 @@
     (ot/ctl (:center-right pans) :pan 0.5)
     (ot/ctl (:right pans) :pan 1)
     (random-density-loop [(:rand-sync triggers) (:rand-sync pans)])
-    [trigger-busses triggers pan-busses pans]))
+    (swap! triggers-pans merge {:trigger-busses (merge (@triggers-pans :trigger-busses) trigger-busses)
+                                :triggers       (merge (@triggers-pans :triggers) triggers)
+                                :pan-busses     (merge (@triggers-pans :pan-busses) pan-busses)
+                                :pans           (merge (@triggers-pans :pans) pans)})
+    true))
 
 
 
@@ -145,20 +150,17 @@
   ([] (init {}))
   ([trigger-defs]
    (swap! env-bufs merge (make-env-bufs env-signals))
-   (let [[trigger-busses-loc triggers-loc pan-busses-loc pans-loc] (make-triggers-pans trigger-defs)]
-     (swap! trigger-busses merge trigger-busses-loc)
-     (swap! triggers merge triggers-loc)
-     (swap! pan-busses merge pan-busses-loc)
-     (swap! pans merge pans-loc)
-     true)))
+   (make-triggers-pans trigger-defs)
+   true))
 
 
 ;
 ; Accessors to envelope buffers, triggers, pans
 ;
-(defn env-buf [key] (key @env-bufs))
-(defn trigger [key] (key @triggers))
-(defn trigger-bus [key] (key @trigger-busses))
-(defn pan [key] (key @pans))
-(defn pan-bus [key] (key @pan-busses))
+(defn env-buf [key] (u/check-nil (key @env-bufs) "Env Buf" key))
 
+(defn- get-triggers-pans [key] (u/check-nil (key @triggers-pans) "Triggers/Pans" key))
+(defn trigger [key] (u/check-nil (key (get-triggers-pans :triggers)) "Trigger" key))
+(defn trigger-bus [key] (u/check-nil (key (get-triggers-pans :trigger-busses)) "Trigger Bus" key))
+(defn pan [key] (u/check-nil (key (get-triggers-pans :pans)) "Pan" key))
+(defn pan-bus [key] (u/check-nil (key (get-triggers-pans :pan-busses)) "Pan Bus" key))

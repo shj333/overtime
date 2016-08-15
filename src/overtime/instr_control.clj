@@ -1,21 +1,25 @@
 (ns overtime.instr-control
   (:require [overtone.core :as ot]
             [overtime.microsound :as micro]
-            [overtime.sound-control :as snd]))
+            [overtime.sound-control :as snd]
+            [overtime.utils :as u]))
 
 
 (defonce ^:private instrs (atom {}))
 
+(defn instr [instr-key] (u/check-nil (@instrs instr-key) "Instr" instr-key))
+
 (defn play-instr
   [instr-key synth params]
   (println "Playing instr" instr-key)
-  (swap! instrs assoc instr-key (apply synth params)))
+  (swap! instrs assoc instr-key (-> (u/check-nil synth "Synth" instr-key)
+                                    (apply params))))
 
 (defn stop-instr
   ([instr-key] (stop-instr instr-key 10))
   ([instr-key num-incrs]
    (println "Stopping instr" instr-key "over" num-incrs "increments")
-   (let [this-instr (@instrs instr-key)
+   (let [this-instr (instr instr-key)
          start-amp (ot/node-get-control this-instr :amp)
          amp-delta (/ start-amp num-incrs)
          amps (reverse (take num-incrs (range 0 start-amp amp-delta)))
@@ -43,12 +47,12 @@
 
 (defn kill-sound
   [instr-key]
-  (ot/kill (instr-key @instrs)))
+  (ot/kill (instr instr-key)))
 
 (defn set-params
   [type key & params]
   (let [synth-instance (case type
-                         :instr (@instrs key)
+                         :instr (instr key)
                          :trigger (micro/trigger key)
                          :pan (micro/pan key)
                          (println "Unknown synth type" type))]
