@@ -1,14 +1,12 @@
 # overtime
 
-A Clojure library designed to ... well, that part is up to you.
+A Clojure library designed to control sound events over time within Overtone/SuperCollider.
 
 ## Usage
 
-FIXME
+TODO
 
 ## License
 
-Copyright © 2016 FIXME
-
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+Copyright © 2016 Berwick Heights Software
+Distributed under The MIT License.
