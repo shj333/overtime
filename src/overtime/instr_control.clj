@@ -1,9 +1,9 @@
 (ns overtime.instr-control
   (:require [overtone.core :as ot]
-            [overtime.microsound :as micro]))
+            [overtime.microsound :as micro]
+            [overtime.sound-control :as snd]))
 
 
-(defonce ^:private sound-defs (atom {}))
 (defonce ^:private instrs (atom {}))
 
 (defn play-instr
@@ -29,7 +29,7 @@
 
 (defn play-sound
   [instr-key sound-def-key]
-  (let [{:keys [synth params]} (sound-def-key @sound-defs)]
+  (let [{:keys [synth params]} (snd/sound-def sound-def-key)]
     (play-instr instr-key synth params)))
 
 (defn play-sound-at

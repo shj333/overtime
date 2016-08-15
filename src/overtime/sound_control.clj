@@ -25,3 +25,5 @@
 (defn define-sounds
   [sound-defs-data]
   (swap! sound-defs merge (into {} (for [[sound-def-key sound-def-data] sound-defs-data] (define-sound sound-def-key sound-def-data)))))
+
+(defn sound-def [key] (key @sound-defs))
