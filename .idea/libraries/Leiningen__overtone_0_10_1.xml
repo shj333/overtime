@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="Leiningen: overtone:0.10.1">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/overtone/overtone/0.10.1/overtone-0.10.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
