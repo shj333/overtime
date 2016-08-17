@@ -1,8 +1,9 @@
-(ns overtime.utils)
+(ns overtime.utils
+  (:require [clojure.tools.logging :as log]))
 
 (defn check-nil
   [val & labels]
   (if (nil? val) (->> labels
                       (clojure.string/join " ")
-                      (println "WARN: Value is nil:")))
+                      (log/error "Value is nil:")))
   val)

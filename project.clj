@@ -5,4 +5,5 @@
             :url          "http://opensource.org/licenses/MIT"
             :distribution :repo}
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [overtone "0.10.1"]])
+                 [overtone "0.10.1"]
+                 [org.clojure/tools.logging "0.3.1"]])

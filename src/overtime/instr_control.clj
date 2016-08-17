@@ -2,7 +2,8 @@
   (:require [overtone.core :as ot]
             [overtime.microsound :as micro]
             [overtime.sound-control :as snd]
-            [overtime.utils :as u]))
+            [overtime.utils :as u]
+            [clojure.tools.logging :as log]))
 
 
 (defonce ^:private instrs (atom {}))
@@ -11,7 +12,7 @@
 
 (defn play-instr
   [instr-key synth params]
-  (println "Playing instr" instr-key)
+  (log/info "Playing instr" instr-key)
   (swap! instrs assoc instr-key (-> (u/check-nil synth "Synth" instr-key)
                                     (apply params))))
 
@@ -19,7 +20,7 @@
   ([instr-key] (stop-instr instr-key 10))
   ([instr-key num-incrs]
    ; TODO Replace with call to set-param-over-time
-   (println "Stopping instr" instr-key "over" num-incrs "increments")
+   (log/info "Stopping instr" instr-key "over" num-incrs "increments")
    (let [this-instr (instr instr-key)
          start-amp (ot/node-get-control this-instr :amp)
          amp-delta (/ start-amp num-incrs)
@@ -56,11 +57,11 @@
     :instr (instr key)
     :trigger (micro/trigger key)
     :pan (micro/pan key)
-    (println "Unknown synth type" type)))
+    (log/error "Unknown synth type" type)))
 
 (defn set-params
   [type key & params]
-  (apply println "Set params for" type key "to" params)
+  (log/info "Set params for" type key "to" params)
   (apply ot/ctl (synth-instance type key) params))
 
 (defn- set-at [time f & params] (ot/apply-by time #(ot/at time (apply f params))))
@@ -75,7 +76,7 @@
 
 (defn set-param-over-time
   [type key param-key num-steps val-delta-f time-delta-f]
-  (println "Setting param" param-key "for" type key "over" num-steps "steps")
+  (log/info "Setting param" param-key "for" type key "over" num-steps "steps")
   (let [synth (synth-instance type key)
         vals (get-delta-vals (ot/node-get-control synth param-key) num-steps val-delta-f)
         times (get-delta-vals (+ (ot/now) 500) num-steps time-delta-f)
