@@ -18,6 +18,7 @@
 (defn stop-instr
   ([instr-key] (stop-instr instr-key 10))
   ([instr-key num-incrs]
+   ; TODO Replace with call to set-param-over-time
    (println "Stopping instr" instr-key "over" num-incrs "increments")
    (let [this-instr (instr instr-key)
          start-amp (ot/node-get-control this-instr :amp)
@@ -49,17 +50,36 @@
   [instr-key]
   (ot/kill (instr instr-key)))
 
+(defn- synth-instance
+  [type key]
+  (case type
+    :instr (instr key)
+    :trigger (micro/trigger key)
+    :pan (micro/pan key)
+    (println "Unknown synth type" type)))
+
 (defn set-params
   [type key & params]
-  (let [synth-instance (case type
-                         :instr (instr key)
-                         :trigger (micro/trigger key)
-                         :pan (micro/pan key)
-                         (println "Unknown synth type" type))]
-    (apply ot/ctl synth-instance params)))
+  (apply println "Set params for" type key "to" params)
+  (apply ot/ctl (synth-instance type key) params))
 
-(defn set-params-at
-  [time type key & params]
-  (ot/apply-by time #(ot/at time
-                            (apply println "Set params for" type key "to" params)
-                            (apply set-params type key params))))
+(defn- set-at [time f & params] (ot/apply-by time #(ot/at time (apply f params))))
+
+(defn set-params-at [time & params] (apply set-at time set-params params))
+
+(defn- get-delta-vals
+  [start num-steps f]
+  (->> start
+       (iterate f)
+       (take num-steps)))
+
+(defn set-param-over-time
+  [type key param-key num-steps val-delta-f time-delta-f]
+  (println "Setting param" param-key "for" type key "over" num-steps "steps")
+  (let [synth (synth-instance type key)
+        vals (get-delta-vals (ot/node-get-control synth param-key) num-steps val-delta-f)
+        times (get-delta-vals (+ (ot/now) 500) num-steps time-delta-f)
+        vals-times (map vector vals times)]
+    (doseq [[val time] vals-times] (ot/at time (ot/ctl synth param-key val)))))
+
+(defn set-param-over-time-at [time & params] (set-at time set-param-over-time params))
