@@ -1,6 +1,6 @@
 (ns overtime.instr-control
   (:require [overtone.core :as ot]
-            [overtime.microsound :as micro]
+            [overtime.sect-control :as sect]
             [overtime.sound-control :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
@@ -10,28 +10,20 @@
 
 (defn instr [instr-key] (u/check-nil (@instrs instr-key) "Instr" instr-key))
 
+(defmulti synth-instance (fn [type _key] type))
+(defmethod synth-instance :default [_type _key] (log/error "Unknown synth type" type))
+(defmethod synth-instance :instr [_type key] (instr key))
+
+(defmacro apply-by
+  [time body]
+  `(ot/apply-by ~time #(try ~body
+                            (catch Exception e# (log/error (str "Caught exception in apply-by " ~time ", " '~body ": ") e#)))))
+
 (defn play-instr
   [instr-key synth params]
   (log/info "Playing instr" instr-key)
   (swap! instrs assoc instr-key (-> (u/check-nil synth "Synth" instr-key)
                                     (apply params))))
-
-(defn stop-instr
-  ([instr-key] (stop-instr instr-key 10))
-  ([instr-key num-incrs]
-   ; TODO Replace with call to set-param-over-time
-   (log/info "Stopping instr" instr-key "over" num-incrs "increments")
-   (let [this-instr (instr instr-key)
-         start-amp (ot/node-get-control this-instr :amp)
-         amp-delta (/ start-amp num-incrs)
-         amps (reverse (take num-incrs (range 0 start-amp amp-delta)))
-         start-time (+ (ot/now) 500)
-         time-delta 250
-         times (take num-incrs (iterate #(+ time-delta %) start-time))
-         amps-times (map vector amps times)]
-     (doseq [[amp time] amps-times] (ot/at time (ot/ctl this-instr :amp amp)))
-     (ot/at (+ time-delta (last times)) (ot/kill this-instr)))))
-
 
 (defn play-sound
   [instr-key sound-def-key]
@@ -41,36 +33,19 @@
 (defn play-sound-at
   ([time instr-key] (play-sound-at time instr-key instr-key))
   ([time instr-key sound-def-key]
-   (ot/apply-by time #(ot/at time (play-sound instr-key sound-def-key)))))
+   (apply-by time (ot/at time (play-sound instr-key sound-def-key)))))
 
-(defn stop-sound
-  [time instr-key]
-  (ot/apply-by time #'stop-instr [instr-key]))
-
-(defn kill-sound
-  [instr-key]
-  (ot/kill (instr instr-key)))
-
-(defn- synth-instance
-  [type key]
-  (case type
-    :instr (instr key)
-    :trigger (micro/trigger key)
-    :pan (micro/pan key)
-    (log/error "Unknown synth type" type)))
 
 (defn set-params
   [type key & params]
   (log/info "Set params for" type key "to" params)
   (apply ot/ctl (synth-instance type key) params))
 
-(defn- set-at [time f & params] (ot/apply-by time #(ot/at time (apply f params))))
-
-(defn set-params-at [time & params] (apply set-at time set-params params))
+(defn set-params-at [time & params] (apply-by time (ot/at time (apply set-params params))))
 
 (defn- get-delta-vals
-  [start num-steps f]
-  (->> start
+  [start-val num-steps f]
+  (->> start-val
        (iterate f)
        (take num-steps)))
 
@@ -78,9 +53,38 @@
   [type key param-key num-steps val-delta-f time-delta-f]
   (log/info "Setting param" param-key "for" type key "over" num-steps "steps")
   (let [synth (synth-instance type key)
-        vals (get-delta-vals (ot/node-get-control synth param-key) num-steps val-delta-f)
+        start-val (ot/node-get-control synth param-key)
+        vals (get-delta-vals start-val num-steps val-delta-f)
         times (get-delta-vals (+ (ot/now) 500) num-steps time-delta-f)
         vals-times (map vector vals times)]
-    (doseq [[val time] vals-times] (ot/at time (ot/ctl synth param-key val)))))
+    (log/debug "Vals:" vals)
+    (log/debug "Times:" times)
+    (doseq [[val time] vals-times] (ot/at time (set-params type key param-key val)))
+    [synth vals-times]))
 
-(defn set-param-over-time-at [time & params] (set-at time set-param-over-time params))
+(defn set-param-over-time-at [time & params] (apply-by time (apply set-param-over-time params)))
+
+
+(defn stop-instr
+  ([instr-key] (stop-instr instr-key 10))
+  ([instr-key num-incrs]
+   (log/info "Stopping instr" instr-key "over" num-incrs "increments")
+   (let [time-delta 250
+         [synth vals-times] (set-param-over-time :instr instr-key :amp num-incrs #(* % 0.50) #(+ % time-delta))
+         last-time (-> vals-times last second)]
+     (log/debug "Last time:" last-time)
+     (ot/at (+ time-delta last-time) (ot/kill synth)))))
+
+(defn stop-sound-at
+  [time instr-key]
+  (apply-by time (stop-instr instr-key)))
+
+(defn kill-sound
+  [instr-key]
+  (ot/kill (instr instr-key)))
+
+
+(defmethod sect/instr-control-f :play [_event-data] play-sound-at)
+(defmethod sect/instr-control-f :stop [_event-data] stop-sound-at)
+(defmethod sect/instr-control-f :set [_event-data] set-params-at)
+(defmethod sect/instr-control-f :delta [_event-data] set-param-over-time-at)

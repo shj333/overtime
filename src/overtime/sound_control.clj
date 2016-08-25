@@ -1,26 +1,22 @@
 (ns overtime.sound-control
-  (:require [overtone.core :as ot]
-            [overtime.microsound :as micro]
-            [overtime.fx :as fx]
-            [overtime.utils :as u]))
+  (:require [overtime.utils :as u]
+            [clojure.tools.logging :as log]))
 
 
 (defonce ^:private sound-defs (atom {}))
 
-(defn- param-data
-  [key data]
-  (case key
-    :env-buf (micro/env-buf data)
-    :trigger-bus (micro/trigger-bus data)
-    :pan-bus (micro/pan-bus data)
-    :out (fx/bus data)
-    data))
+(defmulti sound-param (fn [type _data] type))
+(defmethod sound-param :default [_type data] data)
+
+(defmulti sound-grp (fn [type _key] type))
+(defmethod sound-grp :default [type _data] (log/error "Unknown sound group type" type))
+
 
 (defn- define-sound
   [sound-def-key sound-def-data]
   (let [{:keys [synth params]} sound-def-data
-        params-list (->> (flatten (for [[key data] params] [key (param-data key data)]))
-                         (cons [:tail (fx/group :producer-grp)]))
+        params-list (->> (flatten (for [[key data] params] [key (sound-param key data)]))
+                         (cons [:tail (sound-grp :fx :producer-grp)]))
         sound-def {:synth synth :params params-list}]
     [sound-def-key sound-def]))
 

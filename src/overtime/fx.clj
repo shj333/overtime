@@ -1,6 +1,7 @@
 (ns overtime.fx
   (:require [overtone.core :as ot]
-            [overtime.utils :as u]))
+            [overtime.utils :as u]
+            [overtime.sound-control :as snd]))
 
 (defonce ^:private groups (atom {}))
 (defonce ^:private busses (atom {}))
@@ -37,3 +38,6 @@
 
 (defn group [group-key] (u/check-nil (group-key @groups) "FX Group" group-key))
 (defn bus [bus-key] (u/check-nil (bus-key @busses) "FX Bus" bus-key))
+
+(defmethod snd/sound-param :out [_type data] (bus data))
+(defmethod snd/sound-grp :fx [_type key] (group key))

@@ -1,8 +1,10 @@
 (ns overtime.sect-control
   (:require [overtone.core :as ot]
-            [overtime.instr-control :as instr]
             [clojure.tools.logging :as log]))
 
+
+(defmulti instr-control-f (fn [event-data] (first event-data)))
+(defmethod instr-control-f :default [event-data] (log/error "Unknown control-func key" (first event-data)))
 
 (defn- get-start-times
   [section-lengths]
@@ -11,21 +13,20 @@
         start-times (cons 0 lengths)]
     (map #(+ session-start %) start-times)))
 
+(defn- event-time
+  [start-time event-data]
+  (->> (second event-data)
+       (* 1000.0)
+       Math/round
+       (+ start-time)))
+
 (defn- play-section
   [section-data opts]
   (let [{:keys [name events start-time]} section-data]
     (ot/apply-by start-time #(log/info "Starting section" name))
     (doseq [event-data events]
-      (let [f (case (first event-data)
-                :play instr/play-sound-at
-                :stop instr/stop-sound
-                :set instr/set-params-at
-                :delta instr/set-param-over-time-at
-                (log/error "Unknown control-func key" key))
-            time (->> (second event-data)
-                      (* 1000.0)
-                      Math/round
-                      (+ start-time))]
+      (let [f (instr-control-f event-data)
+            time (event-time start-time event-data)]
         (apply f time (rest (rest event-data)))))))
 
 

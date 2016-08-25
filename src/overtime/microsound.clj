@@ -2,7 +2,9 @@
   (:require [overtone.core :as ot]
             [overtime.shapes :as shapes]
             [overtime.probability :as prob]
-            [overtime.utils :as u]))
+            [overtime.utils :as u]
+            [overtime.instr-control :as instr]
+            [overtime.sound-control :as snd]))
 
 
 (defonce ^:private random-density-range (atom [2 20]))
@@ -164,3 +166,11 @@
 (defn trigger-bus [key] (u/check-nil (key (get-triggers-pans :trigger-busses)) "Trigger Bus" key))
 (defn pan [key] (u/check-nil (key (get-triggers-pans :pans)) "Pan" key))
 (defn pan-bus [key] (u/check-nil (key (get-triggers-pans :pan-busses)) "Pan Bus" key))
+
+
+(defmethod instr/synth-instance :trigger [_type key] (trigger key))
+(defmethod instr/synth-instance :pan [_type key] (pan key))
+
+(defmethod snd/sound-param :env-buf [_type data] (env-buf data))
+(defmethod snd/sound-param :trigger-bus [_type data] (trigger-bus data))
+(defmethod snd/sound-param :pan-bus [_type data] (pan-bus data))
