@@ -38,7 +38,7 @@
 
 (defn set-params
   [type key & params]
-  (log/info "Set params for" type key "to" params)
+  (log/debug "Set params for" type key "to" params)
   (apply ot/ctl (synth-instance type key) params))
 
 (defn set-params-at [time & params] (apply-by time (ot/at time (apply set-params params))))

@@ -5,6 +5,11 @@
 (defmulti gen-shape (fn [stage _pos] (nth stage 4)))
 
 (defmethod gen-shape (ot/ENV-SHAPES :step)
+  [stage _pos]
+  (let [[_y1 y2] stage]
+    y2))
+
+(defmethod gen-shape (ot/ENV-SHAPES :hold)
   [stage pos]
   (let [[y1 y2] stage]
     (if (< pos 1) y1 y2)))
