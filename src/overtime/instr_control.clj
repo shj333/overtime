@@ -37,11 +37,11 @@
 
 
 (defn set-params
-  [type key & params]
-  (log/debug "Set params for" type key "to" params)
+  [type key log-level & params]
+  (log/logp log-level "Set params for" type key "to" params)
   (apply ot/ctl (synth-instance type key) params))
 
-(defn set-params-at [time & params] (apply-by time (ot/at time (apply set-params params))))
+(defn set-params-at [time type key & params] (apply-by time (ot/at time (apply set-params type key :info params))))
 
 (defn- get-delta-vals
   [start-val num-steps f]
@@ -59,7 +59,7 @@
         vals-times (map vector vals times)]
     (log/debug "Vals:" vals)
     (log/debug "Times:" times)
-    (doseq [[val time] vals-times] (ot/at time (set-params type key param-key val)))
+    (doseq [[val time] vals-times] (ot/at time (set-params type key :debug param-key val)))
     [synth vals-times]))
 
 (defn set-param-over-time-at [time & params] (apply-by time (apply set-param-over-time params)))
