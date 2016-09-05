@@ -6,4 +6,5 @@
             :distribution :repo}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [overtone "0.10.1"]
+                 [seesaw "1.4.5"]
                  [org.clojure/tools.logging "0.3.1"]])
