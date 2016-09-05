@@ -153,12 +153,15 @@
 ; Accessors to envelope buffers, triggers, pans
 ;
 (defn env-buf [key] (u/check-nil (key @env-bufs) "Env Buf" key))
+(defn env-buf-keys [] (keys @env-bufs))
 
 (defn- get-triggers-pans [key] (u/check-nil (key @triggers-pans) "Triggers/Pans" key))
 (defn trigger [key] (u/check-nil (key (get-triggers-pans :triggers)) "Trigger" key))
 (defn trigger-bus [key] (u/check-nil (key (get-triggers-pans :trigger-busses)) "Trigger Bus" key))
+(defn trigger-bus-keys [] (keys (get-triggers-pans :trigger-busses)))
 (defn pan [key] (u/check-nil (key (get-triggers-pans :pans)) "Pan" key))
 (defn pan-bus [key] (u/check-nil (key (get-triggers-pans :pan-busses)) "Pan Bus" key))
+(defn pan-bus-keys [] (keys (get-triggers-pans :pan-busses)))
 
 
 (defmethod instr/synth-instance :trigger [_type key] (trigger key))

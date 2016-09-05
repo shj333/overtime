@@ -20,4 +20,5 @@
     true))
 
 (defn control-bus [key] (u/check-nil (key @busses) "Control Bus" key))
+(defn control-bus-keys [] (keys @busses))
 (defmethod snd/sound-param :control-bus [_type data] (control-bus data))
