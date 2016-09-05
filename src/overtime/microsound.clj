@@ -18,16 +18,9 @@
 ;
 ; Grain envelopes
 ;
-(defn num-lin-lin
-  ([x in-min in-max out-min out-max] (num-lin-lin x in-min in-max out-min out-max :min-max))
-  ([x in-min in-max out-min out-max clip]
-   (cond (and (not (nil? (clip #{:min-max :min}))) (<= x in-min)) out-min
-         (and (not (nil? (clip #{:min-max :max}))) (>= x in-max)) out-max
-         true (+ out-min (* (- out-max out-min) (/ (- x in-min) (- in-max in-min)))))))
-
 (defn- make-sinc-point
   [sinc-num x length]
-  (let [val (* (num-lin-lin x 0 (dec length) (- 0 Math/PI) Math/PI) sinc-num)]
+  (let [val (* (u/num-lin-lin x 0 (dec length) (- 0 Math/PI) Math/PI) sinc-num)]
     (/ (Math/sin val) val)))
 
 (defn- make-sinc
