@@ -38,8 +38,9 @@
 
 (defn set-params
   [type key log-level & params]
-  (log/logp log-level "Set params for" type key "to" params)
-  (apply ot/ctl (synth-instance type key) params))
+  (let [sound-params (flatten (for [[key val] (partition 2 params)] [key (snd/sound-param key val)]))]
+    (log/logp log-level "Set params for" type key "to" sound-params)
+    (apply ot/ctl (synth-instance type key) sound-params)))
 
 (defn set-params-at [time type key & params] (apply-by time (ot/at time (apply set-params type key :info params))))
 
