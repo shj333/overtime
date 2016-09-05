@@ -15,13 +15,23 @@
     <orderEntry type="library" name="Leiningen: clj-glob:1.0.0" level="project" />
     <orderEntry type="library" name="Leiningen: clj-native:0.9.3" level="project" />
     <orderEntry type="library" name="Leiningen: clojure-complete:0.2.4" level="project" />
+    <orderEntry type="library" name="Leiningen: com.fifesoft/rsyntaxtextarea:2.5.6" level="project" />
+    <orderEntry type="library" name="Leiningen: com.jgoodies/forms:1.2.1" level="project" />
+    <orderEntry type="library" name="Leiningen: com.miglayout/miglayout:3.7.4" level="project" />
     <orderEntry type="library" name="Leiningen: commons-net:3.0.1" level="project" />
+    <orderEntry type="library" name="Leiningen: j18n:1.0.2" level="project" />
     <orderEntry type="library" name="Leiningen: javax.jmdns/jmdns:3.4.1" level="project" />
     <orderEntry type="library" name="Leiningen: net.java.dev.jna/jna:3.4.0" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/clojure:1.8.0" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/data.json:0.2.3" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/tools.logging:0.3.1" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/tools.nrepl:0.2.12" level="project" />
+    <orderEntry type="library" name="Leiningen: org.swinglabs.swingx/swingx-action:1.6.3" level="project" />
+    <orderEntry type="library" name="Leiningen: org.swinglabs.swingx/swingx-autocomplete:1.6.3" level="project" />
+    <orderEntry type="library" name="Leiningen: org.swinglabs.swingx/swingx-common:1.6.3" level="project" />
+    <orderEntry type="library" name="Leiningen: org.swinglabs.swingx/swingx-core:1.6.3" level="project" />
+    <orderEntry type="library" name="Leiningen: org.swinglabs.swingx/swingx-painters:1.6.3" level="project" />
+    <orderEntry type="library" name="Leiningen: org.swinglabs.swingx/swingx-plaf:1.6.3" level="project" />
     <orderEntry type="library" name="Leiningen: overtone/at-at:1.2.0" level="project" />
     <orderEntry type="library" name="Leiningen: overtone/byte-spec:0.3.1" level="project" />
     <orderEntry type="library" name="Leiningen: overtone/libs.handlers:0.2.0" level="project" />
@@ -30,5 +40,6 @@
     <orderEntry type="library" name="Leiningen: overtone/scsynth-extras:3.5.7.0" level="project" />
     <orderEntry type="library" name="Leiningen: overtone/scsynth:3.5.7.0" level="project" />
     <orderEntry type="library" name="Leiningen: overtone:0.10.1" level="project" />
+    <orderEntry type="library" name="Leiningen: seesaw:1.4.5" level="project" />
   </component>
 </module>
