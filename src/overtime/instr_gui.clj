@@ -17,9 +17,9 @@
       data)))
 
 (defn- update-instr [frame-key key val]
-  (let [instr-key (:instr (frame-data frame-key))]
-    (log/info "Frame" frame-key "has event" key "=>" val "for instr" (or instr-key "unknown"))
-    (if-not (nil? instr-key) (instr/set-params :instr instr-key :info key val))))
+  (let [{:keys [:instr-type :instr]} (frame-data frame-key)]
+    (log/info "Frame" frame-key "has event" key "=>" val "for" (or instr-type "") (or instr "unknown"))
+    (if-not (or (nil? instr-type) (nil? instr)) (instr/set-params instr-type instr :info key val))))
 
 (defn- listbox-id [key is-lkup] (keyword (str (if is-lkup "#") (name key) "-lb")))
 
@@ -82,13 +82,13 @@
 (defn show
   [frame-key & args]
   (let [args-map (apply hash-map args)
-        {:keys [:title :listboxes :sliders :instr :loc-x :loc-y] :or {:title "Instr GUI" :listboxes [] :sliders [] :loc-x 0 :loc-y 0}} args-map
+        {:keys [:title :listboxes :sliders :instr-type :instr :loc-x :loc-y] :or {:title "Instr GUI" :listboxes [] :sliders [] :loc-x 0 :loc-y 0}} args-map
         f (ss/frame :title title :content "Placeholder...")
         p (make-panel frame-key listboxes sliders)]
     (ss/config! f :content p)
     (-> f ss/pack! ss/show!)
     (doto f (.setLocation loc-x loc-y))
-    (swap! frames-data assoc frame-key {:frame f :sliders sliders :instr instr})
+    (swap! frames-data assoc frame-key {:frame f :sliders sliders :instr-type instr-type :instr instr})
     f))
 
 (defn- widget
@@ -115,7 +115,7 @@
         (ss/config! :text (str val)))
     true))
 
-(defn set-instr [frame-key instr] (swap! frames-data update-in [frame-key] assoc :instr instr))
+(defn set-instr [frame-key instr-type instr] (swap! frames-data update-in [frame-key] assoc :instr-type instr-type :instr instr))
 
 (comment
   (def listboxes {:grain-envs [:guass :expodec :sync1 :sync2 :sync3 :sync4 :sync5 :sync6 :sync7 :sync8 :sync9 :sync10]
