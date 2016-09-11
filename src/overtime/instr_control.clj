@@ -14,11 +14,6 @@
 (defmethod synth-instance :default [_type _key] (log/error "Unknown synth type" type))
 (defmethod synth-instance :instr [_type key] (instr key))
 
-(defmacro apply-by
-  [time body]
-  `(ot/apply-by ~time #(try ~body
-                            (catch Exception e# (log/error (str "Caught exception in apply-by " ~time ", " '~body ": ") e#)))))
-
 (defn play-instr
   [instr-key synth params]
   (log/info "Playing instr" instr-key)
@@ -33,7 +28,7 @@
 (defn play-sound-at
   ([time instr-key] (play-sound-at time instr-key instr-key))
   ([time instr-key sound-def-key]
-   (apply-by time (ot/at time (play-sound instr-key sound-def-key)))))
+   (u/apply-by time (ot/at time (play-sound instr-key sound-def-key)))))
 
 
 (defn set-params
@@ -42,7 +37,7 @@
     (log/logp log-level "Set params for" type key "to" sound-params)
     (apply ot/ctl (synth-instance type key) sound-params)))
 
-(defn set-params-at [time type key & params] (apply-by time (ot/at time (apply set-params type key :info params))))
+(defn set-params-at [time type key & params] (u/apply-by time (ot/at time (apply set-params type key :info params))))
 
 (defn- get-delta-vals
   [start-val num-steps f]
@@ -63,7 +58,7 @@
     (doseq [[val time] vals-times] (ot/at time (set-params type key :debug param-key val)))
     [synth vals-times]))
 
-(defn set-param-over-time-at [time & params] (apply-by time (apply set-param-over-time params)))
+(defn set-param-over-time-at [time & params] (u/apply-by time (apply set-param-over-time params)))
 
 
 (defn stop-instr
@@ -78,7 +73,7 @@
 
 (defn stop-sound-at
   [time instr-key]
-  (apply-by time (stop-instr instr-key)))
+  (u/apply-by time (stop-instr instr-key)))
 
 (defn kill-sound
   [instr-key]

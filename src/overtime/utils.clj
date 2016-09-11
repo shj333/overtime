@@ -14,3 +14,8 @@
    (cond (and (not (nil? (clip #{:min-max :min}))) (<= x in-min)) out-min
          (and (not (nil? (clip #{:min-max :max}))) (>= x in-max)) out-max
          true (+ out-min (* (- out-max out-min) (/ (- x in-min) (- in-max in-min)))))))
+
+(defmacro apply-by
+  [time body]
+  `(ot/apply-by ~time #(try ~body
+                            (catch Exception e# (log/error (str "Caught exception in apply-by " ~time ", " '~body ": ") e#)))))
