@@ -65,10 +65,10 @@
   (doseq [{:keys [synth params time]} events] (if-not (nil? synth) (ot/at time (apply synth params)))))
 
 (defn- setup-next-pattern-events
-  [pattern-key last-event]
+  [f pattern-key last-event]
   (if-not (nil? last-event)
     (let [{:keys [next-time]} last-event]
-      (u/apply-by next-time (#'do-pattern-at next-time pattern-key)))))
+      (u/apply-by next-time (f next-time pattern-key)))))
 
 (defn do-pattern-at
   [time pattern-key]
@@ -76,7 +76,7 @@
         dur-per-stage (get-in @pattern [:params :dur-per-stage])
         events (get-pattern-events time pattern dur-per-stage)]
     (do-pattern-events events)
-    (setup-next-pattern-events pattern-key (last events))))
+    (setup-next-pattern-events do-pattern-at pattern-key (last events))))
 
 (defn make-pattern
   [pattern-key synth params]
