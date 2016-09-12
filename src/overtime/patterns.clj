@@ -1,7 +1,8 @@
 (ns overtime.patterns
   (:require [overtone.core :as ot]
-            [clojure.tools.logging :as log]
-            [overtime.utils :as u]))
+            [overtime.sect-control :as sect]
+            [overtime.utils :as u]
+            [clojure.tools.logging :as log]))
 
 
 (defonce ^:private patterns (atom {}))
@@ -90,10 +91,16 @@
     (swap! pattern update-in [:params] merge (apply hash-map params))
     true))
 
+(defn change-pattern-at [time pattern-key & params] (u/apply-by time (apply change-pattern pattern-key params)))
+
 (defn pattern-value
   [pattern-key param-key]
   (let [pattern (get-pattern pattern-key)]
     (param-key (:params @pattern))))
+
+
+(defmethod sect/instr-control-f :pat [_event-data] do-pattern-at)
+(defmethod sect/instr-control-f :patd [_event-data] change-pattern-at)
 
 
 (comment
