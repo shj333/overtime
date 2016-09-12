@@ -71,13 +71,18 @@
     (let [{:keys [next-time]} last-event]
       (u/apply-by next-time (f next-time pattern-key)))))
 
-(defn do-pattern-at
+(defn do-pattern
   [time pattern-key]
   (let [pattern (get-pattern pattern-key)
         dur-per-stage (get-in @pattern [:params :dur-per-stage])
         events (get-pattern-events time pattern dur-per-stage)]
     (do-pattern-events events)
-    (setup-next-pattern-events do-pattern-at pattern-key (last events))))
+    (setup-next-pattern-events do-pattern pattern-key (last events))))
+
+(defn do-pattern-at
+  [time pattern-key]
+  (log/info "Starting pattern" pattern-key)
+  (u/apply-by time (do-pattern time pattern-key)))
 
 (defn make-pattern
   [pattern-key synth params]
@@ -87,8 +92,10 @@
 
 (defn change-pattern
   [pattern-key & params]
-  (let [pattern (get-pattern pattern-key)]
-    (swap! pattern update-in [:params] merge (apply hash-map params))
+  (let [pattern (get-pattern pattern-key)
+        mapped-params (apply hash-map params)]
+    (log/info "Changing pattern" pattern-key ", keys:" (keys mapped-params))
+    (swap! pattern update-in [:params] merge mapped-params)
     true))
 
 (defn change-pattern-at [time pattern-key & params] (u/apply-by time (apply change-pattern pattern-key params)))
