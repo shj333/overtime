@@ -167,6 +167,6 @@
 (defmethod instr/synth-instance :trigger [_type key] (trigger key))
 (defmethod instr/synth-instance :pan [_type key] (pan key))
 
-(defmethod snd/sound-param :env-buf [_type data] (env-buf data))
-(defmethod snd/sound-param :trigger-bus [_type data] (trigger-bus data))
-(defmethod snd/sound-param :pan-bus [_type data] (pan-bus data))
+(defmethod snd/sound-param-keyword-f :env-buf [_type] env-buf)
+(defmethod snd/sound-param-keyword-f :trigger-bus [_type] trigger-bus)
+(defmethod snd/sound-param-keyword-f :pan-bus [_type] pan-bus)

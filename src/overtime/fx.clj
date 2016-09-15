@@ -31,13 +31,14 @@
     (reverb1 [:tail fx-grp] :in reverb-bus :room-size 243 :rev-time 1 :damping 0.1 :input-bw 0.34 :dry-level -3 :early-level -11 :tail-level -9)
     true))
 
-(defn make-fx
+(defn init
   []
   (-> (make-groups)
-      make-synths))
+      make-synths)
+  true)
 
 (defn group [group-key] (u/check-nil (group-key @groups) "FX Group" group-key))
 (defn bus [bus-key] (u/check-nil (bus-key @busses) "FX Bus" bus-key))
 
-(defmethod snd/sound-param :out [_type data] (bus data))
+(defmethod snd/sound-param-keyword-f :out [_type] bus)
 (defmethod snd/sound-grp :fx [_type key] (group key))

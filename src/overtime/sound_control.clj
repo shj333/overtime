@@ -5,8 +5,14 @@
 
 (defonce ^:private sound-defs (atom {}))
 
-(defmulti sound-param (fn [type _data] type))
-(defmethod sound-param :default [_type data] data)
+(defmulti sound-param-keyword-f (fn [type] type))
+(defmethod sound-param-keyword-f :default [_type] identity)
+
+(defn sound-param
+  [key val]
+  (if (keyword? val)
+    ((sound-param-keyword-f key) val)
+    val))
 
 (defmulti sound-grp (fn [type _key] type))
 (defmethod sound-grp :default [type _data] (log/error "Unknown sound group type" type))

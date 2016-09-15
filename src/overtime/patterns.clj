@@ -1,28 +1,34 @@
 (ns overtime.patterns
   (:require [overtone.core :as ot]
             [overtime.sect-control :as sect]
+            [overtime.sound-control :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
 
 
 (defonce ^:private patterns (atom {}))
-(defonce ^:private dflt-pattern-params {:dur-per-stage 5000})
+(defonce ^:private dflt-pattern-params {:osc-period 5000})
 
 (defn- get-pattern [pattern-key] (u/check-nil (pattern-key @patterns) "Pattern" pattern-key))
 
 (defn- get-value
-  [f param]
-  (if (seq? param)
-    (f param)
-    param))
+  ([lazy-eval-f val] (get-value lazy-eval-f nil val))
+  ([lazy-eval-f key val]
+   (cond
+     ; If value is a lazy sequence, evaluate with given func
+     (seq? val) (lazy-eval-f val)
+     ; If a key was given, this is a sound parameter, use sound-control logic to get param value
+     key (snd/sound-param key val)
+     ; Otherwise use the param value as is
+     true val)))
 
 (defn- this-synth-params
   [params]
-  (flatten (for [[k v] params] [k (get-value first v)])))
+  (flatten (for [[k v] params] [k (get-value first k v)])))
 
 (defn- next-synth-params
   [params]
-  (into {} (for [[k v] params] [k (get-value next v)])))
+  (into {} (for [[k v] params] [k (get-value next k v)])))
 
 (defn- get-pattern-event
   [[prev-event pattern]]
@@ -48,22 +54,39 @@
         nil))))
 
 (defn- is-not-stage-complete?
-  [dur-per-stage event]
+  [osc-period event]
   (if (nil? event)
     false
-    (< (:total-dur event) dur-per-stage)))
+    (< (:total-dur event) osc-period)))
 
 (defn- get-pattern-events
-  [time pattern dur-per-stage]
-  (let [[first-event] (get-pattern-event [{:next-time time :total-dur 0} pattern])
+  [time pattern]
+  (let [osc-period (get-in @pattern [:params :osc-period])
+        [first-event] (get-pattern-event [{:next-time time :total-dur 0} pattern])
         lazy-events (->> (iterate get-pattern-event [first-event pattern])
                          (map first))
-        [head tail] (split-with (partial is-not-stage-complete? dur-per-stage) lazy-events)]
+        [head tail] (split-with (partial is-not-stage-complete? osc-period) lazy-events)]
     (concat head (take 1 tail))))
+
+(defn- convert-for-s_new
+  [param]
+  (let [param (ot/to-id param)]
+    (cond
+      (keyword? param) (name param)
+      (number? param) (float param)
+      (true? param) (float 1)
+      (false? param) (float 0)
+      true param)))
+
+(defn- do-pattern-event
+  [time synth params]
+  (if-let [synth-name (get-in synth [:sdef :name])]
+    (ot/at time (apply ot/snd "/s_new" synth-name -1 0 0 (map convert-for-s_new params)))))
 
 (defn- do-pattern-events
   [events]
-  (doseq [{:keys [synth params time]} events] (if-not (nil? synth) (ot/at time (apply synth params)))))
+  (doseq [{:keys [synth params time]} events] (do-pattern-event time synth params))
+  events)
 
 (defn- setup-next-pattern-events
   [f pattern-key last-event]
@@ -73,11 +96,11 @@
 
 (defn do-pattern
   [time pattern-key]
-  (let [pattern (get-pattern pattern-key)
-        dur-per-stage (get-in @pattern [:params :dur-per-stage])
-        events (get-pattern-events time pattern dur-per-stage)]
-    (do-pattern-events events)
-    (setup-next-pattern-events do-pattern pattern-key (last events))))
+  (->> (get-pattern pattern-key)
+       (get-pattern-events time)
+       do-pattern-events
+       last
+       (setup-next-pattern-events do-pattern pattern-key)))
 
 (defn do-pattern-at
   [time pattern-key]
@@ -86,9 +109,9 @@
 
 (defn make-pattern
   [pattern-key synth params]
-  (let [pattern (atom {:name (name pattern-key) :synth synth :params (merge dflt-pattern-params params)})]
-    (swap! patterns assoc pattern-key pattern)
-    true))
+  (->> (atom {:name (name pattern-key) :synth synth :params (merge dflt-pattern-params params)})
+       (swap! patterns assoc pattern-key))
+  true)
 
 (defn change-pattern
   [pattern-key & params]
@@ -102,8 +125,9 @@
 
 (defn pattern-value
   [pattern-key param-key]
-  (let [pattern (get-pattern pattern-key)]
-    (param-key (:params @pattern))))
+  (-> (get-pattern pattern-key)
+      deref
+      (get-in [:params param-key])))
 
 
 (defmethod sect/instr-control-f :pat [_event-data] do-pattern-at)
@@ -121,14 +145,14 @@
 
   (make-pattern :gabor1
                 gabor
-                {:out-bus       0
-                 :freq          (cycle [440 220])
-                 :sustain       0.1
-                 :pan           0.0
-                 :amp           0.1
-                 :width         0.25
-                 :dur           1000
-                 :dur-per-stage 2000})
+                {:out-bus    0
+                 :freq       (cycle [440 220])
+                 :sustain    0.1
+                 :pan        0.0
+                 :amp        0.1
+                 :width      0.25
+                 :dur        1000
+                 :osc-period 2000})
   (do-pattern-at (+ (ot/now) 1000) :gabor1)
   (change-pattern :gabor1 :dur 25)
   (change-pattern :gabor1 :amp nil))

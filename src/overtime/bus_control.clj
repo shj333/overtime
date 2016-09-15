@@ -1,8 +1,8 @@
 (ns overtime.bus-control
   (:require [overtone.core :as ot]
+            [overtime.sound-control :as snd]
             [overtime.utils :as u]
-            [clojure.tools.logging :as log]
-            [overtime.sound-control :as snd]))
+            [clojure.tools.logging :as log]))
 
 
 (defonce ^:private busses (atom {}))
@@ -21,4 +21,4 @@
 
 (defn control-bus [key] (u/check-nil (key @busses) "Control Bus" key))
 (defn control-bus-keys [] (keys @busses))
-(defmethod snd/sound-param :control-bus [_type data] (control-bus data))
+(defmethod snd/sound-param-keyword-f :control-bus [_type] control-bus)
