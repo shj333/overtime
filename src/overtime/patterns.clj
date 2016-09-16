@@ -1,5 +1,6 @@
 (ns overtime.patterns
   (:require [overtone.core :as ot]
+            [overtime.instr-control :as instr]
             [overtime.sect-control :as sect]
             [overtime.sound-control :as snd]
             [overtime.utils :as u]
@@ -113,15 +114,13 @@
        (swap! patterns assoc pattern-key))
   true)
 
-(defn change-pattern
-  [pattern-key & params]
+(defmethod instr/set-params :pat
+  [_type pattern-key log-level & params]
   (let [pattern (get-pattern pattern-key)
         mapped-params (apply hash-map params)]
-    (log/info "Changing pattern" pattern-key ", keys:" (keys mapped-params))
+    (log/logp log-level "Changing pattern" pattern-key ", keys:" (keys mapped-params))
     (swap! pattern update-in [:params] merge mapped-params)
     true))
-
-(defn change-pattern-at [time pattern-key & params] (u/apply-by time (apply change-pattern pattern-key params)))
 
 (defn pattern-value
   [pattern-key param-key]
@@ -131,7 +130,6 @@
 
 
 (defmethod sect/instr-control-f :pat [_event-data] do-pattern-at)
-(defmethod sect/instr-control-f :patd [_event-data] change-pattern-at)
 
 
 (comment
@@ -154,5 +152,5 @@
                  :dur        1000
                  :osc-period 2000})
   (do-pattern-at (+ (ot/now) 1000) :gabor1)
-  (change-pattern :gabor1 :dur 25)
-  (change-pattern :gabor1 :amp nil))
+  (instr/set-params :pat :gabor1 :info :dur 25)
+  (instr/set-params :pat :gabor1 :info :amp nil))

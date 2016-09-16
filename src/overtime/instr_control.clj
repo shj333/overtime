@@ -31,7 +31,8 @@
    (u/apply-by time (ot/at time (play-sound instr-key sound-def-key)))))
 
 
-(defn set-params
+(defmulti set-params (fn [type _key _log-level & _params] type))
+(defmethod set-params :default
   [type key log-level & params]
   (let [sound-params (flatten (for [[key val] (partition 2 params)] [key (snd/sound-param key val)]))]
     (log/logp log-level "Set params for" type key "to" sound-params)
