@@ -70,6 +70,8 @@
   [xs-event key]
   (swap! handlers-per-knob update-in [xs-event] dissoc key))
 
+(defn dump-handlers [] (doseq [[knob-key val] @handlers-per-knob] (println knob-key "=>" (keys val))))
+
 (comment
   (start)
   (stop)
@@ -81,4 +83,6 @@
   (add-handler! :2-left :foo #(println "2-left:" %))
   (add-handler! :mid-left :foo #(println "mid-left:" %))
   (add-handler! :3-left :foo #(println "3-left:" %))
-  (add-handler! :volume-left :foo #(println "volume-left:" %)))
+  (add-handler! :volume-left :foo #(println "volume-left:" %))
+  (add-handler! :headphone-left :foo (fn [_x] (println "headphone-left")))
+  (dump-handlers))
