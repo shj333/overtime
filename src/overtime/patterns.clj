@@ -115,10 +115,10 @@
   true)
 
 (defmethod instr/set-params :pat
-  [_type pattern-key log-level & params]
+  [_type pattern-key & params]
   (let [pattern (get-pattern pattern-key)
         mapped-params (apply hash-map params)]
-    (log/logp log-level "Changing pattern" pattern-key ", keys:" (keys mapped-params))
+    (log/debug "Changing pattern" pattern-key ", keys:" (keys mapped-params))
     (swap! pattern update-in [:params] merge mapped-params)
     true))
 
@@ -152,5 +152,5 @@
                  :dur        1000
                  :osc-period 2000})
   (do-pattern-at (+ (ot/now) 1000) :gabor1)
-  (instr/set-params :pat :gabor1 :info :dur 25)
-  (instr/set-params :pat :gabor1 :info :amp nil))
+  (instr/set-params :pat :gabor1 :dur 25)
+  (instr/set-params :pat :gabor1 :amp nil))

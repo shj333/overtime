@@ -30,15 +30,19 @@
   ([time instr-key sound-def-key]
    (u/apply-by time (ot/at time (play-sound instr-key sound-def-key)))))
 
-
-(defmulti set-params (fn [type _key _log-level & _params] type))
+(defmulti set-params (fn [type _key & _params] type))
 (defmethod set-params :default
-  [type key log-level & params]
+  [type key & params]
   (let [sound-params (flatten (for [[key val] (partition 2 params)] [key (snd/sound-param key val)]))]
-    (log/logp log-level "Set params for" type key "to" sound-params)
+    (log/debug "Set params for" type key "to" sound-params)
     (apply ot/ctl (synth-instance type key) sound-params)))
 
-(defn set-params-at [time type key & params] (u/apply-by time (ot/at time (apply set-params type key :info params))))
+(defn set-params-at
+  [time type key & params]
+  (u/apply-by time
+              (do
+                (log/info "Set params for" type key ", params" (take-nth 2 params))
+                (ot/at time (apply set-params type key params)))))
 
 (defn- get-delta-vals
   [start-val num-steps f]
@@ -56,7 +60,7 @@
         vals-times (map vector vals times)]
     (log/debug "Vals:" vals)
     (log/debug "Times:" times)
-    (doseq [[val time] vals-times] (ot/at time (set-params type key :debug param-key val)))
+    (doseq [[val time] vals-times] (ot/at time (set-params type key param-key val)))
     [synth vals-times]))
 
 (defn set-param-over-time-at [time & params] (u/apply-by time (apply set-param-over-time params)))

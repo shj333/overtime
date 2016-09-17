@@ -19,7 +19,7 @@
 (defn- update-instr [frame-key key val]
   (let [{:keys [:instr-type :instr]} (frame-data frame-key)]
     (log/info "Frame" frame-key "has event" key "=>" val "for" (or instr-type "") (or instr "unknown"))
-    (if-not (or (nil? instr-type) (nil? instr)) (instr/set-params instr-type instr :info key val))))
+    (if-not (or (nil? instr-type) (nil? instr)) (instr/set-params instr-type instr key val))))
 
 (defn- listbox-id [key is-lkup] (keyword (str (if is-lkup "#") (name key) "-lb")))
 
