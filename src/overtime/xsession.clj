@@ -59,30 +59,35 @@
         (doseq [[_k f] handlers] (f (:velocity event)))))
     hdlr-key))
 
-(defn start [] (map set-midi-event-hdlr [:control-change :note-on] [::cc-hdlr ::note-hdlr]))
-(defn stop [] (map ot/remove-event-handler [::cc-hdlr ::note-hdlr]))
+(defn start [] (doseq [[type hdlr-key] [[:control-change ::cc-hdlr] [:note-on ::note-hdlr]]] (set-midi-event-hdlr type hdlr-key)))
+(defn stop [] (doseq [hdlr-key [::cc-hdlr ::note-hdlr]] (ot/remove-event-handler hdlr-key)))
 
 (defn add-handler!
-  [xs-event key f]
-  (swap! handlers-per-knob update-in [xs-event] assoc key f))
+  [knob key f]
+  (swap! handlers-per-knob assoc-in [knob key] f))
 
 (defn remove-handler!
-  [xs-event key]
-  (swap! handlers-per-knob update-in [xs-event] dissoc key))
+  [knob key]
+  (swap! handlers-per-knob update knob dissoc key))
+
+(defn clear-handlers!
+  [key]
+  (doseq [knob (keys @handlers-per-knob)] (remove-handler! knob key)))
 
 (defn dump-handlers [] (doseq [[knob-key val] @handlers-per-knob] (println knob-key "=>" (keys val))))
 
 (comment
   (start)
   (stop)
-  (add-handler! :1-left :foo #(println "1-left:" %))
-  (add-handler! :1-left :foo #(println "1-left other:" %))
-  (add-handler! :1-left :bar #(println "1-left bar:" %))
-  (remove-handler! :1-left :bar)
-  (add-handler! :high-left :foo #(println "high-left:" %))
-  (add-handler! :2-left :foo #(println "2-left:" %))
-  (add-handler! :mid-left :foo #(println "mid-left:" %))
-  (add-handler! :3-left :foo #(println "3-left:" %))
-  (add-handler! :volume-left :foo #(println "volume-left:" %))
-  (add-handler! :headphone-left :foo (fn [_x] (println "headphone-left")))
+  (add-handler! :1-left :instr1 #(println "1-left:" %))
+  (add-handler! :1-left :instr1 #(println "1-left other:" %))
+  (add-handler! :1-left :instr2 #(println "1-left bar:" %))
+  (remove-handler! :1-left :instr2)
+  (add-handler! :high-left :instr1 #(println "high-left:" %))
+  (add-handler! :2-left :instr1 #(println "2-left:" %))
+  (add-handler! :mid-left :instr1 #(println "mid-left:" %))
+  (add-handler! :3-left :instr1 #(println "3-left:" %))
+  (add-handler! :volume-left :instr1 #(println "volume-left:" %))
+  (add-handler! :headphone-left :instr1 (fn [_x] (println "headphone-left")))
+  (clear-handlers! :instr1)
   (dump-handlers))
