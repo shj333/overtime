@@ -51,15 +51,15 @@
       midi-note)))
 
 (defn- set-midi-event-hdlr
-  [type hdlr-key]
+  [event-type hdlr-key]
   (ot/on-event
-    [:midi type]
+    [:midi event-type]
     (fn [event]
       (let [handlers ((get-midi-note event) @handlers-per-knob)]
         (doseq [[_k f] handlers] (f (:velocity event)))))
     hdlr-key))
 
-(defn start [] (doseq [[type hdlr-key] [[:control-change ::cc-hdlr] [:note-on ::note-hdlr]]] (set-midi-event-hdlr type hdlr-key)))
+(defn start [] (doseq [[event-type hdlr-key] [[:control-change ::cc-hdlr] [:note-on ::note-hdlr]]] (set-midi-event-hdlr event-type hdlr-key)))
 (defn stop [] (doseq [hdlr-key [::cc-hdlr ::note-hdlr]] (ot/remove-event-handler hdlr-key)))
 
 (defn add-handler!
@@ -81,7 +81,7 @@
   (stop)
   (add-handler! :1-left :instr1 #(println "1-left:" %))
   (add-handler! :1-left :instr1 #(println "1-left other:" %))
-  (add-handler! :1-left :instr2 #(println "1-left bar:" %))
+  (add-handler! :1-left :instr2 #(println "1-left instr2:" %))
   (remove-handler! :1-left :instr2)
   (add-handler! :high-left :instr1 #(println "high-left:" %))
   (add-handler! :2-left :instr1 #(println "2-left:" %))
