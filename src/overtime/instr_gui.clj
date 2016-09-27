@@ -17,8 +17,8 @@
       data)))
 
 (defn- update-instr [frame-key key val]
-  (let [{:keys [:instr-type :instr]} (frame-data frame-key)]
-    (log/info "Frame" frame-key "has event" key "=>" val "for" (or instr-type "") (or instr "unknown"))
+  (let [{:keys [instr-type instr]} (frame-data frame-key)]
+    (log/debug "Frame" frame-key "has event" key "=>" val "for" (or instr-type "") (or instr "unknown"))
     (if-not (or (nil? instr-type) (nil? instr)) (instr/set-params instr-type instr key val))))
 
 (defn- listbox-id [key is-lkup] (keyword (str (if is-lkup "#") (name key) "-lb")))
@@ -39,7 +39,7 @@
   (ss/slider :id (slider-id key false) :value (* val slider-val-mult) :min (* min slider-val-mult) :max (* max slider-val-mult)))
 
 
-(defn text-box-id [key is-lkup] (keyword (str (if is-lkup "#") (name key) "-txt")))
+(defn- text-box-id [key is-lkup] (keyword (str (if is-lkup "#") (name key) "-txt")))
 
 (defn- make-text-box
   [key val]
@@ -61,7 +61,7 @@
        (ss/config! slider :value)))
 
 (defn- make-slider-row
-  [frame-key [slider-key {:keys [:min :max :init-val :slider-val-mult] :or {:slider-val-mult slider-val-mult-dflt}}]]
+  [frame-key [slider-key {:keys [min max init-val slider-val-mult] :or {slider-val-mult slider-val-mult-dflt}}]]
   (let [key-str (name slider-key)
         slider (make-slider slider-key min max init-val slider-val-mult)
         textbox (make-text-box slider-key init-val)]
@@ -80,11 +80,10 @@
                    :items (concat listbox-rows slider-rows))))
 
 (defn show
-  [frame-key & args]
-  (let [args-map (apply hash-map args)
-        {:keys [:title :listboxes :sliders :instr-type :instr :loc-x :loc-y] :or {:title "Instr GUI" :listboxes [] :sliders [] :loc-x 0 :loc-y 0}} args-map
-        f (ss/frame :title title :content "Placeholder...")
+  [frame-key {:keys [title listboxes sliders instr-type instr loc-x loc-y] :or {title "Instr GUI" listboxes [] sliders [] loc-x 0 loc-y 0}}]
+  (let [f (ss/frame :title title :content "Placeholder...")
         p (make-panel frame-key listboxes sliders)]
+    (log/debug "Showing GUI for" frame-key ", list boxes:" listboxes ", sliders:" sliders ", instr:" instr-type "-" instr)
     (ss/config! f :content p)
     (-> f ss/pack! ss/show!)
     (doto f (.setLocation loc-x loc-y))
@@ -97,9 +96,9 @@
       :frame
       (ss/select [(widget-id-f widget-key true)])))
 
-(defn listbox [frame-key listbox-key] (widget frame-key listbox-id listbox-key))
+(defn get-listbox [frame-key listbox-key] (widget frame-key listbox-id listbox-key))
 
-(defn slider [frame-key slider-key] (widget frame-key slider-id slider-key))
+(defn get-slider [frame-key slider-key] (widget frame-key slider-id slider-key))
 
 
 (defn change-slider-val
@@ -109,16 +108,28 @@
         slider-val-mult (-> (:sliders frame-data)
                             slider-key
                             (get :slider-val-mult slider-val-mult-dflt))]
+    (log/debug "Changing slider value for" frame-key slider-key "to" val)
     (-> (ss/select f [(slider-id slider-key true)])
         (ss/config! :value (* val slider-val-mult)))
     (-> (ss/select f [(text-box-id slider-key true)])
         (ss/config! :text (str val)))
     true))
 
-(defn set-instr [frame-key instr-type instr] (swap! frames-data update-in [frame-key] assoc :instr-type instr-type :instr instr))
+(defn set-instr
+  [frame-key instr-type instr]
+  (log/debug "Set instr for" frame-key "to" instr-type instr)
+  (swap! frames-data update frame-key assoc :instr-type instr-type :instr instr))
 
 (comment
   (def listboxes {:grain-envs [:guass :expodec :sync1 :sync2 :sync3 :sync4 :sync5 :sync6 :sync7 :sync8 :sync9 :sync10]
                   :pans       [:left :right :center]})
   (def sliders {:grain-dur {:min 0.05 :max 2.0 :init-val 0.05 :slider-val-mult 100.0}
-                :freq      {:min 10 :max 20000 :init-val 100}}))
+                :freq      {:min 10 :max 20000 :init-val 100}})
+  (show key
+            :title "Test GUI"
+            :listboxes listboxes
+            :sliders sliders
+            :loc-x 2600
+            :loc-y 200
+            :instr-type :instr
+            :instr :foo))

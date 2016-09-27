@@ -1,5 +1,6 @@
 (ns overtime.instr-control
   (:require [overtone.core :as ot]
+            [overtime.microsound :as micro]
             [overtime.sect-control :as sect]
             [overtime.sound-control :as snd]
             [overtime.utils :as u]
@@ -13,6 +14,8 @@
 (defmulti synth-instance (fn [type _key] type))
 (defmethod synth-instance :default [_type _key] (log/error "Unknown synth type" type))
 (defmethod synth-instance :instr [_type key] (instr key))
+(defmethod synth-instance :trigger [_type key] (micro/trigger key))
+(defmethod synth-instance :pan [_type key] (micro/pan key))
 
 (defn play-instr
   [instr-key synth params]

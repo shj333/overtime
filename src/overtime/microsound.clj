@@ -1,18 +1,16 @@
 (ns overtime.microsound
   (:require [overtone.core :as ot]
-            [overtime.shapes :as shapes]
+            [overtime.bus-control :as bus]
             [overtime.probability :as prob]
+            [overtime.shapes :as shapes]
             [overtime.utils :as u]
-            [overtime.instr-control :as instr]
-            [overtime.sound-control :as snd]))
+            [clojure.tools.logging :as log]))
 
 
 (defonce ^:private random-density-range (atom [2 20]))
 (defonce ^:private env-bufs (atom {}))
-(defonce ^:private triggers-pans (atom {:triggers       {}
-                                        :trigger-busses {}
-                                        :pans           {}
-                                        :pan-busses     {}}))
+(defonce ^:private triggers (atom {}))
+(defonce ^:private pans (atom {}))
 
 
 ;
@@ -94,6 +92,7 @@
 
 (defn set-random-density-range
   [low high]
+  (log/debug "Setting random density range to" low "->" high)
   (reset! random-density-range [low high]))
 
 
@@ -101,10 +100,9 @@
 ; Creates busses and instruments for triggers and pans that drive grain synths
 ;
 (defn- make-busses-insts
-  [synth-defs bus-type]
-  (let [busses (into {} (for [key (keys synth-defs)] [key (bus-type)]))
-        insts (into {} (for [[key bus] busses] [key ((key synth-defs) :out bus)]))]
-    [busses insts]))
+  [synth-defs bus-category]
+  (bus/add-busses bus-category (keys synth-defs) :control 1)
+  (into {} (for [[key synth-def] synth-defs] [key (synth-def :out (bus/bus bus-category key))])))
 
 (defonce core-trigger-defs {:sync      sync-trigger
                             :rand-sync sync-trigger
@@ -120,20 +118,20 @@
 (defn- make-triggers-pans
   [trigger-defs]
   (let [all-trigger-defs (merge core-trigger-defs trigger-defs)
-        [trigger-busses triggers] (make-busses-insts all-trigger-defs ot/control-bus)
+        new-triggers (make-busses-insts all-trigger-defs :trigger)
         pan-defs (into {} (for [k (keys all-trigger-defs)] [k rand-pan]))
         all-pan-defs (merge core-pan-defs pan-defs)
-        [pan-busses pans] (make-busses-insts all-pan-defs ot/control-bus)]
-    (ot/ctl (:left pans) :pan -1)
-    (ot/ctl (:center-left pans) :pan -0.5)
-    (ot/ctl (:center pans) :pan 0)
-    (ot/ctl (:center-right pans) :pan 0.5)
-    (ot/ctl (:right pans) :pan 1)
-    (random-density-loop [(:rand-sync triggers) (:rand-sync pans)])
-    (swap! triggers-pans merge {:trigger-busses (merge (@triggers-pans :trigger-busses) trigger-busses)
-                                :triggers       (merge (@triggers-pans :triggers) triggers)
-                                :pan-busses     (merge (@triggers-pans :pan-busses) pan-busses)
-                                :pans           (merge (@triggers-pans :pans) pans)})
+        new-pans (make-busses-insts all-pan-defs :pan)]
+    (log/debug "Created triggers" (keys new-triggers))
+    (log/debug "Created pans" (keys new-pans))
+    (ot/ctl (:left new-pans) :pan -1)
+    (ot/ctl (:center-left new-pans) :pan -0.5)
+    (ot/ctl (:center new-pans) :pan 0)
+    (ot/ctl (:center-right new-pans) :pan 0.5)
+    (ot/ctl (:right new-pans) :pan 1)
+    (random-density-loop [(:rand-sync new-triggers) (:rand-sync new-pans)])
+    (swap! triggers merge new-triggers)
+    (swap! pans merge new-pans)
     true))
 
 
@@ -143,9 +141,11 @@
 ;
 (defn init
   ([] (init {}))
-  ([trigger-defs]
+  ([{:keys [triggers density-range]}]
    (swap! env-bufs merge (make-env-bufs env-signals))
-   (make-triggers-pans trigger-defs)
+   (make-triggers-pans triggers)
+   (when density-range (apply set-random-density-range density-range))
+   (log/debug "Finished init for microsound")
    true))
 
 
@@ -155,18 +155,9 @@
 (defn env-buf [key] (u/check-nil (key @env-bufs) "Env Buf" key))
 (defn env-buf-keys [] (keys @env-bufs))
 
-(defn- get-triggers-pans [key] (u/check-nil (key @triggers-pans) "Triggers/Pans" key))
-(defn trigger [key] (u/check-nil (key (get-triggers-pans :triggers)) "Trigger" key))
-(defn trigger-bus [key] (u/check-nil (key (get-triggers-pans :trigger-busses)) "Trigger Bus" key))
-(defn trigger-bus-keys [] (keys (get-triggers-pans :trigger-busses)))
-(defn pan [key] (u/check-nil (key (get-triggers-pans :pans)) "Pan" key))
-(defn pan-bus [key] (u/check-nil (key (get-triggers-pans :pan-busses)) "Pan Bus" key))
-(defn pan-bus-keys [] (keys (get-triggers-pans :pan-busses)))
+(defn trigger [key] (u/check-nil (key @triggers) "Trigger" key))
+(defn pan [key] (u/check-nil (key @pans) "Pan" key))
 
 
-(defmethod instr/synth-instance :trigger [_type key] (trigger key))
-(defmethod instr/synth-instance :pan [_type key] (pan key))
-
-(defmethod snd/sound-param-keyword-f :env-buf [_type] env-buf)
-(defmethod snd/sound-param-keyword-f :trigger-bus [_type] trigger-bus)
-(defmethod snd/sound-param-keyword-f :pan-bus [_type] pan-bus)
+(comment
+  (micro/init {:coin2 micro/coin-trigger}))

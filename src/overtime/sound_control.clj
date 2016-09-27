@@ -1,33 +1,49 @@
 (ns overtime.sound-control
-  (:require [overtime.utils :as u]
+  (:require [overtime.bus-control :as bus]
+            [overtime.groups-control :as grp]
+            [overtime.microsound :as micro]
+            [overtime.utils :as u]
             [clojure.tools.logging :as log]))
 
 
 (defonce ^:private sound-defs (atom {}))
 
-(defmulti sound-param-keyword-f (fn [type] type))
-(defmethod sound-param-keyword-f :default [_type] identity)
+(defmulti sound-param-val (fn [type _val] type))
+(defmethod sound-param-val :default [_type val] val)
+(defmethod sound-param-val :control-bus [_type val] (bus/bus :control val))
+(defmethod sound-param-val :in [_type val] (bus/bus :fx val))
+(defmethod sound-param-val :out [_type val] (bus/bus :fx val))
+(defmethod sound-param-val :env-buf [_type val] (micro/env-buf val))
+(defmethod sound-param-val :trigger-bus [_type val] (bus/bus :trigger val))
+(defmethod sound-param-val :pan-bus [_type val] (bus/bus :pan val))
 
 (defn sound-param
   [key val]
   (if (keyword? val)
-    ((sound-param-keyword-f key) val)
+    (sound-param-val key val)
     val))
 
-(defmulti sound-grp (fn [type _key] type))
-(defmethod sound-grp :default [type _data] (log/error "Unknown sound group type" type))
-
-
 (defn- define-sound
-  [sound-def-key sound-def-data]
-  (let [{:keys [synth params]} sound-def-data
+  [key sound]
+  (let [{:keys [synth params group] :or {group :producers}} sound
         params-list (->> (flatten (for [[key data] params] [key (sound-param key data)]))
-                         (cons [:tail (sound-grp :fx :producer-grp)]))
+                         (cons [:tail (grp/group group)]))
         sound-def {:synth synth :params params-list}]
-    [sound-def-key sound-def]))
+    (log/debug "Defined sound for" key "in group" group)
+    [key sound-def]))
+
 
 (defn define-sounds
-  [sound-defs-data]
-  (swap! sound-defs merge (into {} (for [[sound-def-key sound-def-data] sound-defs-data] (define-sound sound-def-key sound-def-data)))))
+  [{:keys [busses micro def-synths-f sounds]}]
+  (grp/init)
+  (bus/init busses)
+  (micro/init micro)
+  (when def-synths-f
+    (def-synths-f)
+    (log/debug "Finished defining synths"))
+  (->> (into {} (for [[key sound] sounds] (define-sound key sound)))
+       (swap! sound-defs merge))
+  (log/debug "Finished defining sounds")
+  true)
 
 (defn sound-def [key] (u/check-nil (key @sound-defs) "Sound Def" key))

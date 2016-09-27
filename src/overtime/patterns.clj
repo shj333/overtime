@@ -95,7 +95,7 @@
     (let [{:keys [next-time]} last-event]
       (u/apply-by next-time (f next-time pattern-key)))))
 
-(defn do-pattern
+(defn- do-pattern
   [time pattern-key]
   (->> (get-pattern pattern-key)
        (get-pattern-events time)
@@ -112,6 +112,7 @@
   [pattern-key synth params]
   (->> (atom {:name (name pattern-key) :synth synth :params (merge dflt-pattern-params params)})
        (swap! patterns assoc pattern-key))
+  (log/debug "Created pattern" pattern-key)
   true)
 
 (defmethod instr/set-params :pat
@@ -122,7 +123,7 @@
     (swap! pattern update-in [:params] merge mapped-params)
     true))
 
-(defn pattern-value
+(defn current-value
   [pattern-key param-key]
   (-> (get-pattern pattern-key)
       deref
