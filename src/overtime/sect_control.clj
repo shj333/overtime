@@ -21,13 +21,12 @@
        (+ start-time)))
 
 (defn- play-section
-  [section-data opts]
-  (let [{:keys [name events start-time]} section-data]
-    (ot/apply-by start-time #(log/info "Starting section" name))
-    (doseq [event-data events]
-      (let [f (instr-control-f event-data)
-            time (event-time start-time event-data)]
-        (apply f time (rest (rest event-data)))))))
+  [{:keys [name events start-time]} opts]
+  (ot/apply-by start-time #(log/info "Starting section" name))
+  (doseq [event-data events]
+    (let [f (instr-control-f event-data)
+          time (event-time start-time event-data)]
+      (apply f time (rest (rest event-data))))))
 
 
 (defn play-sections

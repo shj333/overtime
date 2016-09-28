@@ -16,7 +16,8 @@
       (throw (Exception. (str "Unknown frame:" frame-key)))
       data)))
 
-(defn- update-instr [frame-key key val]
+(defn- update-instr
+  [frame-key key val]
   (let [{:keys [instr-type instr]} (frame-data frame-key)]
     (log/debug "Frame" frame-key "has event" key "=>" val "for" (or instr-type "") (or instr "unknown"))
     (if-not (or (nil? instr-type) (nil? instr)) (instr/set-params instr-type instr key val))))
@@ -80,7 +81,7 @@
                    :items (concat listbox-rows slider-rows))))
 
 (defn show
-  [frame-key {:keys [title listboxes sliders instr-type instr loc-x loc-y] :or {title "Instr GUI" listboxes [] sliders [] loc-x 0 loc-y 0}}]
+  [frame-key & {:keys [title listboxes sliders instr-type instr loc-x loc-y] :or {title "Instr GUI" listboxes [] sliders [] loc-x 0 loc-y 0}}]
   (let [f (ss/frame :title title :content "Placeholder...")
         p (make-panel frame-key listboxes sliders)]
     (log/debug "Showing GUI for" frame-key ", list boxes:" listboxes ", sliders:" sliders ", instr:" instr-type "-" instr)

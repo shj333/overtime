@@ -90,10 +90,8 @@
   events)
 
 (defn- setup-next-pattern-events
-  [f pattern-key last-event]
-  (if-not (nil? last-event)
-    (let [{:keys [next-time]} last-event]
-      (u/apply-by next-time (f next-time pattern-key)))))
+  [f pattern-key {:keys [next-time]}]
+  (when-not (nil? next-time) (u/apply-by next-time (f next-time pattern-key))))
 
 (defn- do-pattern
   [time pattern-key]

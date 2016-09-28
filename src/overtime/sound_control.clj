@@ -24,9 +24,8 @@
     val))
 
 (defn- define-sound
-  [key sound]
-  (let [{:keys [synth params group] :or {group :producers}} sound
-        params-list (->> (flatten (for [[key data] params] [key (sound-param key data)]))
+  [key {:keys [synth params group] :or {group :producers}}]
+  (let [params-list (->> (flatten (for [[key data] params] [key (sound-param key data)]))
                          (cons [:tail (grp/group group)]))
         sound-def {:synth synth :params params-list}]
     (log/debug "Defined sound for" key "in group" group)
