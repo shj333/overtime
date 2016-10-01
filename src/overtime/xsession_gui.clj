@@ -1,6 +1,5 @@
 (ns overtime.xsession-gui
   (:require [overtone.core :as ot]
-            [overtime.instr-control :as instr]
             [overtime.instr-gui :as gui]
             [overtime.patterns :as pat]
             [overtime.xsession :as xs]
