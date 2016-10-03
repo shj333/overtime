@@ -17,22 +17,6 @@
 (defmethod synth-instance :trigger [_type key] (micro/trigger key))
 (defmethod synth-instance :pan [_type key] (micro/pan key))
 
-(defn play-instr
-  [instr-key synth params]
-  (log/info "Playing instr" instr-key)
-  (swap! instrs assoc instr-key (-> (u/check-nil synth "Synth" instr-key)
-                                    (apply params))))
-
-(defn play-sound
-  [instr-key sound-def-key]
-  (let [{:keys [synth params]} (snd/sound-def sound-def-key)]
-    (play-instr instr-key synth params)))
-
-(defmulti play-sound-at (fn [_time instr-type & _args] instr-type))
-(defmethod play-sound-at :instr
-  [time _instr-type & [instr-key sound-def-key]]
-  (u/apply-by time (ot/at time (play-sound instr-key (or sound-def-key instr-key)))))
-
 (defmulti set-params (fn [type _key & _params] type))
 (defmethod set-params :default
   [type key & params]
@@ -68,6 +52,22 @@
 
 (defn set-param-over-time-at [time & params] (u/apply-by time (apply set-param-over-time params)))
 
+
+(defn play-instr
+  [instr-key synth params]
+  (log/info "Playing instr" instr-key)
+  (swap! instrs assoc instr-key (-> (u/check-nil synth "Synth" instr-key)
+                                    (apply params))))
+
+(defn play-sound
+  [instr-key sound-def-key]
+  (let [{:keys [synth params]} (snd/sound-def sound-def-key)]
+    (play-instr instr-key synth params)))
+
+(defmulti play-sound-at (fn [_time instr-type & _args] instr-type))
+(defmethod play-sound-at :instr
+  [time _instr-type & [instr-key sound-def-key]]
+  (u/apply-by time (ot/at time (play-sound instr-key (or sound-def-key instr-key)))))
 
 (defn stop-instr
   ([instr-key] (stop-instr instr-key 10))
