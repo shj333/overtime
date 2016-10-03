@@ -28,10 +28,10 @@
   (let [{:keys [synth params]} (snd/sound-def sound-def-key)]
     (play-instr instr-key synth params)))
 
-(defn play-sound-at
-  ([time instr-key] (play-sound-at time instr-key instr-key))
-  ([time instr-key sound-def-key]
-   (u/apply-by time (ot/at time (play-sound instr-key sound-def-key)))))
+(defmulti play-sound-at (fn [_time instr-type & _args] instr-type))
+(defmethod play-sound-at :instr
+  [time _instr-type & [instr-key sound-def-key]]
+  (u/apply-by time (ot/at time (play-sound instr-key (or sound-def-key instr-key)))))
 
 (defmulti set-params (fn [type _key & _params] type))
 (defmethod set-params :default
@@ -79,8 +79,9 @@
      (log/debug "Last time:" last-time)
      (ot/at (+ time-delta last-time) (ot/kill synth)))))
 
-(defn stop-sound-at
-  [time instr-key]
+(defmulti stop-sound-at (fn [_time instr-type & _instr-key] instr-type))
+(defmethod stop-sound-at :instr
+  [time _instr-type instr-key]
   (u/apply-by time (stop-instr instr-key)))
 
 (defn kill-sound

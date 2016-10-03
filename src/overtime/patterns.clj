@@ -1,7 +1,6 @@
 (ns overtime.patterns
   (:require [overtone.core :as ot]
             [overtime.instr-control :as instr]
-            [overtime.sect-control :as sect]
             [overtime.sound-control :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
@@ -165,16 +164,18 @@
   [time pattern-key]
   ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
   (set-params pattern-key play-param-key true)
+  (u/apply-by time (do
+                     (log/info "Starting pattern" pattern-key)
+                     (play-pattern time pattern-key))))
 
-  (log/info "Starting pattern" pattern-key)
-  (u/apply-by time (play-pattern time pattern-key)))
-
-(defn stop
-  "Stops playing of pattern"
-  [pattern-key]
+(defn stop-at
+  "Stop playing pattern at the given time. Time is defined in terms of Overtone now function."
+  [time pattern-key]
   ; By setting one of the pattern params to nil, the pattern stops on next read in cycle (see get-pattern-event func)
   ; We use a special pattern param as not to conflict with any params in pattern set by user
-  (set-params pattern-key play-param-key nil))
+  (u/apply-by time (do
+                     (log/info "Stopping pattern" pattern-key)
+                     (set-params pattern-key play-param-key nil))))
 
 (defn current-value
   "Returns the current value of the given parameter within the pattern"
@@ -189,9 +190,8 @@
 ; Multi method definitions wrt patterns
 ;
 (defmethod instr/set-params :pat [_type pattern-key & params] (apply set-params pattern-key params))
-(defmethod sect/instr-control-f :pat [_event-data] play-at)
-
-
+(defmethod instr/play-sound-at :pat [time _instr-type & [pattern-key]] (play-at time pattern-key))
+(defmethod instr/stop-sound-at :pat [time _instr-type pattern-key] (stop-at time pattern-key))
 
 
 
@@ -217,4 +217,4 @@
   (play-at (+ (ot/now) 1000) :gabor1)
   (set-params :gabor1 :dur 25)
   (set-params :gabor1 :dur 1000)
-  (stop :gabor1))
+  (stop-at (+ (ot/now) 1000) :gabor1))
