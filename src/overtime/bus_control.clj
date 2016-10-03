@@ -13,7 +13,7 @@
             :control ot/control-bus
             :audio ot/audio-bus
             (throw (Exception. (str "Unknown bus type: " bus-type))))]
-    (f num-chans)))
+    (f num-chans (name bus-key))))
 
 (defn- init-busses
   [bus-category busses-data]
