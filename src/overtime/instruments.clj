@@ -1,13 +1,13 @@
-(ns overtime.instr-control
+(ns overtime.instruments
   (:require [overtone.core :as ot]
-            [overtime.microsound :as micro]
-            [overtime.sect-control :as sect]
-            [overtime.sound-control :as snd]
+            [overtime.microsounds :as micro]
+            [overtime.sounds :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
 
 
 (defonce ^:private instrs (atom {}))
+
 
 (defn instr [instr-key] (u/check-nil (@instrs instr-key) "Instr" instr-key))
 
@@ -89,7 +89,9 @@
   (ot/kill (instr instr-key)))
 
 
-(defmethod sect/instr-control-f :play [_event-data] play-sound-at)
-(defmethod sect/instr-control-f :stop [_event-data] stop-sound-at)
-(defmethod sect/instr-control-f :set [_event-data] set-params-at)
-(defmethod sect/instr-control-f :delta [_event-data] set-param-over-time-at)
+(defmulti instr-control-f (fn [event-data] (first event-data)))
+(defmethod instr-control-f :default [event-data] (log/error "Unknown control-func key" (first event-data)))
+(defmethod instr-control-f :play [_event-data] play-sound-at)
+(defmethod instr-control-f :stop [_event-data] stop-sound-at)
+(defmethod instr-control-f :set [_event-data] set-params-at)
+(defmethod instr-control-f :delta [_event-data] set-param-over-time-at)

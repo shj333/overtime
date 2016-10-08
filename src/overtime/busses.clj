@@ -1,5 +1,6 @@
-(ns overtime.bus-control
+(ns overtime.busses
   (:require [overtone.core :as ot]
+            [overtime.sounds :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
 
@@ -20,18 +21,11 @@
   (log/debug "Creating busses for category" bus-category "=>" busses-data)
   (into {} (for [[bus-key [bus-type num-chans]] busses-data] [bus-key (make-bus bus-key bus-type num-chans)])))
 
-(defn init
-  [bus-map]
-  (->> (into {} (for [[bus-category busses-data] bus-map] [bus-category (init-busses bus-category busses-data)]))
-       (reset! busses))
-  (log/debug "Finished init for busses")
-  true)
-
-(defn bus [bus-category bus-key] (u/check-nil (get-in @busses [bus-category bus-key]) "Bus" bus-category bus-key))
-
 (defn bus-categories [] (keys @busses))
 
 (defn bus-keys [bus-category] (keys (u/check-nil (bus-category @busses) "Bus Category" bus-category)))
+
+(defn bus [bus-category bus-key] (u/check-nil (get-in @busses [bus-category bus-key]) "Bus" bus-category bus-key))
 
 (defn add-bus
   [bus-category bus-key bus-type num-chans]
@@ -50,6 +44,20 @@
   (->> (into {} (for [bus-key bus-keys] [bus-key (make-bus bus-key bus-type num-chans)]))
        (swap! busses merge-new-busses bus-category)))
 
+(defn init
+  [bus-map]
+  (->> (into {} (for [[bus-category busses-data] bus-map] [bus-category (init-busses bus-category busses-data)]))
+       (reset! busses))
+  (log/info "Finished busses init")
+  (doseq [bus-category (bus-categories)] (log/info "Bus category" bus-category ":" (bus-keys bus-category)))
+  true)
+
+
+(defmethod snd/sound-param-val :in [_type val] (bus :fx val))
+(defmethod snd/sound-param-val :out [_type val] (bus :fx val))
+(defmethod snd/sound-param-val :control-bus [_type val] (bus :control val))
+(defmethod snd/sound-param-val :trigger-bus [_type val] (bus :trigger val))
+(defmethod snd/sound-param-val :pan-bus [_type val] (bus :pan val))
 
 (comment
   (bus/init {:cat1 {:test-cat1-bus1 [:control 1]

@@ -1,4 +1,4 @@
-(ns overtime.groups-control
+(ns overtime.groups
   (:require [overtone.core :as ot]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
@@ -15,7 +15,7 @@
 (defn init
   []
   (make-groups)
-  (log/debug "Finished init for groups")
+  (log/info "Finished groups init:" (keys @groups))
   true)
 
 (defn group [key] (u/check-nil (key @groups) "Group" key))

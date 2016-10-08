@@ -1,7 +1,7 @@
 (ns overtime.instr-gui
   (:require [seesaw.core :as ss]
             [seesaw.mig :as mig]
-            [overtime.instr-control :as instr]
+            [overtime.instruments :as instr]
             [clojure.tools.logging :as log]))
 
 (ss/native!)

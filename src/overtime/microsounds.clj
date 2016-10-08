@@ -1,8 +1,9 @@
-(ns overtime.microsound
+(ns overtime.microsounds
   (:require [overtone.core :as ot]
-            [overtime.bus-control :as bus]
+            [overtime.busses :as bus]
             [overtime.probability :as prob]
             [overtime.shapes :as shapes]
+            [overtime.sounds :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
 
@@ -92,7 +93,7 @@
 
 (defn set-random-density-range
   [low high]
-  (log/debug "Setting random density range to" low "->" high)
+  (log/info "Setting random density range to" low "->" high)
   (reset! random-density-range [low high]))
 
 
@@ -135,6 +136,16 @@
     true))
 
 
+;
+; Accessors to envelope buffers, triggers, pans
+;
+(defn env-buf [key] (u/check-nil (key @env-bufs) "Env Buf" key))
+(defn env-buf-keys [] (keys @env-bufs))
+
+(defn trigger [key] (u/check-nil (key @triggers) "Trigger" key))
+(defn trigger-keys [] (keys @triggers))
+(defn pan [key] (u/check-nil (key @pans) "Pan" key))
+(defn pan-keys [] (keys @pans))
 
 ;
 ; Initialize data structions (envelope buffers, triggers and pans) for this namespace
@@ -145,19 +156,11 @@
    (swap! env-bufs merge (make-env-bufs env-signals))
    (make-triggers-pans triggers)
    (when density-range (apply set-random-density-range density-range))
-   (log/debug "Finished init for microsound")
+   (log/info "Finished microsounds init, env-bufs:" (env-buf-keys) ", triggers:" (trigger-keys) ", pans:" (pan-keys))
    true))
 
 
-;
-; Accessors to envelope buffers, triggers, pans
-;
-(defn env-buf [key] (u/check-nil (key @env-bufs) "Env Buf" key))
-(defn env-buf-keys [] (keys @env-bufs))
-
-(defn trigger [key] (u/check-nil (key @triggers) "Trigger" key))
-(defn pan [key] (u/check-nil (key @pans) "Pan" key))
-
+(defmethod snd/sound-param-val :env-buf [_type val] (env-buf val))
 
 (comment
   (micro/init {:coin2 micro/coin-trigger}))
