@@ -27,7 +27,7 @@
     true))
 
 (defn- dequeue-param-changes
-  ; Passend in pattern is de-referenced since this function is called by swap!
+  ; Pattern is de-referenced since this function is called by swap!
   [derefed-pattern]
   (if (empty? (:new-params derefed-pattern))
     derefed-pattern
@@ -37,6 +37,12 @@
       (-> derefed-pattern
           (update-in [:params] merge (:new-params derefed-pattern))
           (assoc :new-params {})))))
+
+(defn- reset-pattern
+  ; Pattern is de-referenced since this function is called by swap!
+  [derefed-pattern]
+  (log/debug "Resetting pattern" (:name derefed-pattern) "to original synth and params")
+  (assoc derefed-pattern :synth (:orig-synth derefed-pattern) :params (:orig-params derefed-pattern) :reset-flag false))
 
 (defn- get-value
   ([lazy-eval-f val] (get-value lazy-eval-f nil val))
@@ -49,6 +55,12 @@
      ; Otherwise use the param value as is
      true val)))
 
+(defn- this-synth
+  [synth]
+  ; Dereference synth value if synth is defined as a var
+  (let [this-synth-val (get-value first synth)]
+    (if (var? this-synth-val) @this-synth-val this-synth-val)))
+
 (defn- this-synth-params [params] (flatten (for [[k v] params] [k (get-value first k v)])))
 
 (defn- next-synth-params [params] (into {} (for [[k v] params] [k (get-value next k v)])))
@@ -58,7 +70,7 @@
   ; Get next-time from previous event so we know when to play this pattern event
   (let [{time :next-time stage-dur :stage-dur} prev-event
         {:keys [name synth params]} @pattern
-        this-synth (get-value first synth)
+        this-synth (this-synth synth)
         this-params (this-synth-params params)
         this-dur (get-value first (:dur params))
         next-synth (get-value next synth)
@@ -70,8 +82,7 @@
         ; Swap in next events in pattern
         (swap! pattern assoc :synth next-synth :params next-params)
         ; Pass back this event and pattern so we can iterate over this function and create a lazy sequence
-        ; Dereference synth value if synth is defined as a var
-        [{:synth     (if (var? this-synth) @this-synth this-synth)
+        [{:synth     this-synth
           :params    this-params
           :time      time
           :next-time (+ time this-dur)
@@ -91,6 +102,9 @@
 
 (defn- get-pattern-events
   [time pattern]
+  ; If pattern is being reset to original values, we can safely do that here since are between generation of events
+  (if (:reset-flag @pattern) (swap! pattern reset-pattern))
+
   ; Merge any queued changes into pattern before generating new events. We can safely do this here since we are between
   ; generation of events
   (swap! pattern dequeue-param-changes)
@@ -181,10 +195,11 @@
   ; All pattern atoms are stored in a containing atom called "patterns " so that we can manage all the created patterns across threads.
   ; The new-params property of the pattern hash allows changing of the pattern as the pattern is being executed; when pattern changes
   ; need to occur, the changes are kept in new-params until it is safe to merge them during execution of the pattern.
-  (->> (atom {:name (name pattern-key) :synth synth :params (merge dflt-pattern-params params) :new-params {}})
-       (swap! patterns assoc pattern-key))
-  (log/debug "Created pattern" pattern-key)
-  true)
+  (let [merged-params (merge dflt-pattern-params params)]
+    (->> (atom {:name (name pattern-key) :synth synth :params merged-params :new-params {} :orig-synth synth :orig-params merged-params})
+         (swap! patterns assoc pattern-key))
+    (log/debug "Created pattern" pattern-key)
+    true))
 
 (defn play-at
   "Start playing pattern at the given time. Time is defined in terms of Overtone now function."
@@ -193,7 +208,8 @@
   (enqueue-param-changes pattern-key play-param-key true)
   (u/apply-by time (do
                      (log/info "Starting pattern" pattern-key)
-                     (play-pattern time pattern-key))))
+                     (play-pattern time pattern-key)))
+  true)
 
 (defn stop-at
   "Stop playing pattern at the given time. Time is defined in terms of Overtone now function."
@@ -202,7 +218,16 @@
   ; We use a special pattern param as not to conflict with any params in pattern set by user
   (u/apply-by time (do
                      (log/info "Stopping pattern" pattern-key)
-                     (enqueue-param-changes pattern-key play-param-key nil))))
+                     (enqueue-param-changes pattern-key play-param-key nil)))
+  true)
+
+(defn reset-pattern!
+  "Resets pattern to original synth and params values. Useful for restarting patterns that have stopped due to some value in
+  a sequence becoming nil."
+  [pattern-key]
+  (-> (get-pattern pattern-key)
+      (swap! assoc :reset-flag true))
+  true)
 
 (defn current-value
   "Returns the current value of the given parameter within the pattern"
