@@ -116,22 +116,22 @@
       (log/error "Unknown MIDI device:" device-name)
       device-key)))
 
-(defn- get-midi-knob
-  [device-key event]
-  (let [knob (get-in knob-map [device-key (:note event)])]
+(defn- get-device-and-midi-knob
+  [event]
+  (let [device-key (get-device-key event)
+        midi-note (:note event)
+        knob (get-in knob-map [device-key midi-note])]
     (if (nil? knob)
-      (log/error "Unknown note for device" (name device-key) ":" (:note event))
-      knob)))
+      (log/error "Unknown note for device" (name device-key) ":" midi-note)
+      [device-key knob])))
 
 (defn- set-midi-event-hdlr
   [event-type hdlr-key]
   (ot/on-event
     [:midi event-type]
     (fn [event]
-      (let [device-key (get-device-key event)
-            handlers (-> (device-key @handlers-per-knob)
-                         (get (get-midi-knob device-key event)))]
-        (doseq [[_k f] handlers] (f (:velocity event)))))
+      (let [handlers (get-in @handlers-per-knob (get-device-and-midi-knob event) [])]
+        (doseq [[_k f] handlers] (f (:velocity event) (:velocity-f event)))))
     hdlr-key))
 
 (defn start [] (doseq [[event-type hdlr-key] [[:control-change ::cc-hdlr] [:note-on ::note-hdlr]]] (set-midi-event-hdlr event-type hdlr-key)))
@@ -164,34 +164,33 @@
     [:midi :control-change]
     (fn [event] (do
                   ;(println event)
-                  (println (str (get-device-name event) " [" (device-map (get-device-name event)) "]: " (get-midi-knob (get-device-key event) event)))))
+                  (println (str (get-device-name event) ": " (get-device-and-midi-knob event)))))
     ::test-midi)
   (ot/remove-event-handler ::test-midi)
 
   (start)
   (stop)
-  (add-handler! :x-session :1-left :instr1 #(println "1-left:" %))
-  (add-handler! :x-session :1-left :instr1 #(println "1-left other:" %))
-  (add-handler! :x-session :1-left :instr2 #(println "1-left instr2:" %))
+  (add-handler! :x-session :1-left :instr1 (fn [val val-f] (println "1-left instr1:" val val-f)))
+  (add-handler! :x-session :1-left :instr2 (fn [val val-f] (println "1-left instr2:" val val-f)))
   (remove-handler! :x-session :1-left :instr2)
-  (add-handler! :x-session :high-left :instr1 #(println "high-left:" %))
-  (add-handler! :x-session :2-left :instr1 #(println "2-left:" %))
-  (add-handler! :x-session :mid-left :instr1 #(println "mid-left:" %))
-  (add-handler! :x-session :3-left :instr1 #(println "3-left:" %))
-  (add-handler! :x-session :volume-left :instr1 #(println "volume-left:" %))
-  (add-handler! :x-session :headphone-left :instr1 (fn [_x] (println "headphone-left")))
+  (add-handler! :x-session :high-left :instr1 (fn [val val-f] (println "high-left:" val val-f)))
+  (add-handler! :x-session :2-left :instr1 (fn [val val-f] (println "2-left:" val val-f)))
+  (add-handler! :x-session :mid-left :instr1 (fn [val val-f] (println "mid-left:" val val-f)))
+  (add-handler! :x-session :3-left :instr1 (fn [val val-f] (println "3-left:" val val-f)))
+  (add-handler! :x-session :volume-left :instr1 (fn [val val-f] (println "volume-left:" val val-f)))
+  (add-handler! :x-session :headphone-left :instr1 (fn [_val _val-f] (println "headphone-left")))
   (clear-handlers! :x-session :instr1)
 
-  (add-handler! :launch :1-send-a :instr1 #(println "1-send-a:" %))
-  (add-handler! :launch :1-send-a :instr1 #(println "1-send-a other:" %))
-  (add-handler! :launch :1-send-a :instr2 #(println "1-send-a instr2:" %))
+  (add-handler! :launch :1-send-a :instr1 (fn [val val-f] (println "1-send-a:" val val-f)))
+  (add-handler! :launch :1-send-a :instr1 (fn [val val-f] (println "1-send-a other:" val val-f)))
+  (add-handler! :launch :1-send-a :instr2 (fn [val val-f] (println "1-send-a instr2:" val val-f)))
   (remove-handler! :launch :1-send-a :instr2)
-  (add-handler! :launch :2-send-a :instr1 #(println "2-send-a:" %))
-  (add-handler! :launch :1-send-b :instr1 #(println "1-send-b:" %))
-  (add-handler! :launch :2-send-b :instr1 #(println "2-send-b:" %))
-  (add-handler! :launch :1-fader :instr1 #(println "1-fader:" %))
-  (add-handler! :launch :1-focus :instr1 (fn [_x] (println "1-focus")))
-  (add-handler! :launch :1-control :instr1 (fn [_x] (println "1-control")))
+  (add-handler! :launch :2-send-a :instr1 (fn [val val-f] (println "2-send-a:" val val-f)))
+  (add-handler! :launch :1-send-b :instr1 (fn [val val-f] (println "1-send-b:" val val-f)))
+  (add-handler! :launch :2-send-b :instr1 (fn [val val-f] (println "2-send-b:" val val-f)))
+  (add-handler! :launch :1-fader :instr1 (fn [val val-f] (println "1-fader:" val val-f)))
+  (add-handler! :launch :1-focus :instr1 (fn [_val _val-f] (println "1-focus")))
+  (add-handler! :launch :1-control :instr1 (fn [_val _val-f] (println "1-control")))
   (clear-handlers! :launch :instr1)
 
   (dump-handlers))

@@ -11,8 +11,8 @@
 (defn num-lin-lin
   ([x in-min in-max out-min out-max] (num-lin-lin x in-min in-max out-min out-max :min-max))
   ([x in-min in-max out-min out-max clip]
-   (cond (and (not (nil? (clip #{:min-max :min}))) (<= x in-min)) out-min
-         (and (not (nil? (clip #{:min-max :max}))) (>= x in-max)) out-max
+   (cond (and (clip #{:min-max :min}) (<= x in-min)) out-min
+         (and (clip #{:min-max :max}) (>= x in-max)) out-max
          true (+ out-min (* (- out-max out-min) (/ (- x in-min) (- in-max in-min)))))))
 
 (defmacro apply-by
