@@ -85,17 +85,17 @@
 
 (def sections-data [{:name   "Section 1"
                      :length 17
-                     :events [[:play 0 :instr :reverb1]
-                              [:play 0 :instr :high-bells]
-                              [:play 3.3 :instr :low-rumble]
-                              [:stop 10 :instr :low-rumble]
-                              [:set 10 :instr :high-bells :amp 0.1]
-                              [:set 12 :instr :high-bells :amp 0.01]
-                              [:stop 15 :instr :high-bells]]}
+                     :events [[0.0 :play :reverb1]
+                              [0.0 :play :high-bells]
+                              [3.3 :play :low-rumble]
+                              [10.0 :stop :low-rumble]
+                              [10.0 :set :instr :high-bells :amp 0.1]
+                              [12.0 :set :instr :high-bells :amp 0.01]
+                              [15.0 :stop :high-bells]]}
                     {:name   "Section 2"
                      :length 10
-                     :events [[:play 0 :pat :gabor]
-                              [:set 5 :pat :gabor :sustain (map #(/ % (pat/current-value :gabor :freq)) (range 10 0 -1))]]}
+                     :events [[0.0 :play :gabor]
+                              [5.0 :set :pat :gabor :sustain (map #(/ % (pat/current-value :gabor :freq)) (range 10 0 -1))]]}
                     {:name   "Done"
                      :length 0
                      :events []}])
@@ -105,5 +105,6 @@
   (otm/play-sections sections-data)
   (pat/play-at (ot/now) :gabor)
   (pat/stop-at (ot/now) :gabor)
+  (pat/reset-pattern! :gabor)
   (instr/set-params-at (ot/now) :pat :gabor :sustain 0.02)
   (ot/sc-osc-debug-off))

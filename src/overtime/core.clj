@@ -3,7 +3,6 @@
             [overtone.sc.machinery.server.comms :as comms]
             [overtime.busses :as bus]
             [overtime.groups :as grp]
-            [overtime.instruments :as instr]
             [overtime.microsounds :as micro]
             [overtime.patterns :as pat]
             [overtime.sounds :as snd]
@@ -28,9 +27,8 @@
     (map #(+ session-start %) start-times)))
 
 (defn- event-time
-  [start-time event-data]
-  (->> (second event-data)
-       (* 1000.0)
+  [start-time time]
+  (->> (* time 1000.0)
        Math/round
        (+ start-time)))
 
@@ -38,9 +36,8 @@
   [{:keys [name events start-time]} opts]
   (ot/apply-by start-time #(log/info "Starting section" name))
   (doseq [event-data events]
-    (let [f (instr/instr-control-f event-data)
-          time (event-time start-time event-data)]
-      (apply f time (rest (rest event-data))))))
+    (-> (event-time start-time (first event-data))
+        (snd/sound-control (rest event-data)))))
 
 
 
@@ -70,7 +67,7 @@
   true)
 
 (defn play-sections
-  ; TODO Clean up API doc for play-sections
+  ; TODO API doc for play-sections
   "Play music defined by given data"
   ([sections-data] (play-sections sections-data {}))
   ([sections-data opts]

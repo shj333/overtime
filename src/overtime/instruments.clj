@@ -64,9 +64,8 @@
   (let [{:keys [synth params]} (snd/sound-def sound-def-key)]
     (play-instr instr-key synth params)))
 
-(defmulti play-sound-at (fn [_time instr-type & _args] instr-type))
-(defmethod play-sound-at :instr
-  [time _instr-type & [instr-key sound-def-key]]
+(defmethod snd/sound-control :play-instr
+  [time [_sound-control instr-key sound-def-key]]
   (u/apply-by time (ot/at time (play-sound instr-key (or sound-def-key instr-key)))))
 
 (defn stop-instr
@@ -79,9 +78,8 @@
      (log/debug "Last time:" last-time)
      (ot/at (+ time-delta last-time) (ot/kill synth)))))
 
-(defmulti stop-sound-at (fn [_time instr-type & _instr-key] instr-type))
-(defmethod stop-sound-at :instr
-  [time _instr-type instr-key]
+(defmethod snd/sound-control :stop-instr
+  [time [_sound-control instr-key]]
   (u/apply-by time (stop-instr instr-key)))
 
 (defn kill-sound
@@ -89,9 +87,5 @@
   (ot/kill (instr instr-key)))
 
 
-(defmulti instr-control-f (fn [event-data] (first event-data)))
-(defmethod instr-control-f :default [event-data] (log/error "Unknown control-func key" (first event-data)))
-(defmethod instr-control-f :play [_event-data] play-sound-at)
-(defmethod instr-control-f :stop [_event-data] stop-sound-at)
-(defmethod instr-control-f :set [_event-data] set-params-at)
-(defmethod instr-control-f :delta [_event-data] set-param-over-time-at)
+(defmethod snd/sound-control :set [time [_sound-control & event-data]] (apply set-params-at time event-data))
+(defmethod snd/sound-control :delta [time [_sound-control & event-data]] (apply set-param-over-time-at time event-data))

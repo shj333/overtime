@@ -4,6 +4,7 @@
             [clojure.tools.logging :as log]))
 
 (defonce ^:private sound-defs (atom {}))
+(defonce ^:private patterns (atom {}))
 
 
 (defmulti sound-param-val (fn [type _val] type))
@@ -33,3 +34,21 @@
 
 (defn sound-def [key] (u/check-nil (key @sound-defs) "Sound Def" key))
 (defn sound-def? [key] (contains? @sound-defs key))
+
+(defn get-pattern [pattern-key] (u/check-nil (pattern-key @patterns) "Pattern" pattern-key))
+(defn pattern-keys [] (keys @patterns))
+(defn pattern? [key] (contains? @patterns key))
+(defn add-pattern [key pattern] (swap! patterns assoc key pattern))
+
+
+
+(defmulti sound-control
+          (fn [_time [sound-control key & _rest-event-data]]
+            (if (contains? #{:play :stop} sound-control)
+              (cond
+                (sound-def? key) (keyword (str (name sound-control) "-instr"))
+                (pattern? key) (keyword (str (name sound-control) "-pat"))
+                true (log/error "Unknown key" key "for sound control" sound-control))
+              sound-control)))
+
+(defmethod sound-control :default [_time event-data] (log/error "Unknown sound control" event-data))

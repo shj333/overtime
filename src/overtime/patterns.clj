@@ -6,12 +6,9 @@
             [clojure.tools.logging :as log]))
 
 
-(defonce ^:private patterns (atom {}))
 (defonce ^:private dflt-pattern-params {:dur 1000 :staging-period 5000})
 (defonce ^:private play-param-key :play-pattern$)
 
-
-(defn- get-pattern [pattern-key] (u/check-nil (pattern-key @patterns) "Pattern" pattern-key))
 
 (defn- print-params
   [params]
@@ -21,7 +18,7 @@
 
 (defn- enqueue-param-changes
   [pattern-key & {:as params}]
-  (let [pattern (get-pattern pattern-key)]
+  (let [pattern (snd/get-pattern pattern-key)]
     (log/debug "Enqueueing pattern changes for" (:name @pattern) "to:" (print-params params))
     (swap! pattern update-in [:new-params] merge params)
     true))
@@ -156,7 +153,7 @@
 (defn- play-pattern
   [time pattern-key]
   ; Play events in this stage and set up next stage to be run on a separate thread at first time of that stage's events
-  (->> (get-pattern pattern-key)
+  (->> (snd/get-pattern pattern-key)
        (get-pattern-events time)
        do-pattern-events
        last
@@ -197,7 +194,7 @@
   ; need to occur, the changes are kept in new-params until it is safe to merge them during execution of the pattern.
   (let [merged-params (merge dflt-pattern-params params)]
     (->> (atom {:name (name pattern-key) :synth synth :params merged-params :new-params {} :orig-synth synth :orig-params merged-params})
-         (swap! patterns assoc pattern-key))
+         (snd/add-pattern pattern-key))
     (log/debug "Created pattern" pattern-key)
     true))
 
@@ -225,33 +222,30 @@
   "Resets pattern to original synth and params values. Useful for restarting patterns that have stopped due to some value in
   a sequence becoming nil."
   [pattern-key]
-  (-> (get-pattern pattern-key)
+  (-> (snd/get-pattern pattern-key)
       (swap! assoc :reset-flag true))
   true)
 
 (defn current-value
   "Returns the current value of the given parameter within the pattern"
   [pattern-key param-key]
-  (-> (get-pattern pattern-key)
+  (-> (snd/get-pattern pattern-key)
       deref
       (get-in [:params param-key])))
-
-(defn pattern-keys [] (keys @patterns))
 
 (defn init
   [patterns]
   (doseq [[key pattern] patterns] (create-pattern key pattern))
-  (log/info "Finished patterns init:" (pattern-keys))
+  (log/info "Finished patterns init:" (snd/pattern-keys))
   true)
 
-(defn pattern? [key] (contains? @patterns key))
 
 
 ;
 ; Multi method definitions wrt patterns
 ;
-(defmethod instr/play-sound-at :pat [time _instr-type & [pattern-key]] (play-at time pattern-key))
-(defmethod instr/stop-sound-at :pat [time _instr-type pattern-key] (stop-at time pattern-key))
+(defmethod snd/sound-control :play-pat [time [_sound-control pattern-key]] (play-at time pattern-key))
+(defmethod snd/sound-control :stop-pat [time [_sound-control pattern-key]] (stop-at time pattern-key))
 (defmethod instr/set-params :pat [_type pattern-key & params] (apply enqueue-param-changes pattern-key params))
 
 
