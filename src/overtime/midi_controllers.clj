@@ -130,8 +130,10 @@
   (ot/on-event
     [:midi event-type]
     (fn [event]
-      (let [handlers (get-in @handlers-per-knob (get-device-and-midi-knob event) [])]
-        (doseq [[_k f] handlers] (f (:velocity event) (:velocity-f event)))))
+      (doseq [[key f] (get-in @handlers-per-knob (get-device-and-midi-knob event) [])]
+        (try
+          (f (:velocity event) (:velocity-f event))
+          (catch Exception e (log/error (str "Caught exception in midi event hdlr " key ": ") e)))))
     hdlr-key))
 
 (defn start [] (doseq [[event-type hdlr-key] [[:control-change ::cc-hdlr] [:note-on ::note-hdlr]]] (set-midi-event-hdlr event-type hdlr-key)))
