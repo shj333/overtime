@@ -122,7 +122,7 @@
   (swap! frames-data update frame-key assoc :instr-type instr-type :instr instr))
 
 (comment
-  (def listboxes {:grain-envs [:guass :expodec :sync1 :sync2 :sync3 :sync4 :sync5 :sync6 :sync7 :sync8 :sync9 :sync10]
+  (def listboxes {:grain-envs [:guass :expodec :sinc1 :sinc2 :sinc3 :sinc4 :sinc5 :sinc6 :sinc7 :sinc8 :sinc9 :sinc10]
                   :pans       [:left :right :center]})
   (def sliders {:grain-dur {:min 0.05 :max 2.0 :init-val 0.05 :slider-val-mult 100.0}
                 :freq      {:min 10 :max 20000 :init-val 100}})
