@@ -239,11 +239,12 @@
 
 (defmethod handle-event :play-pat
   [time [_event-type pattern-key]]
-  ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
-  (enqueue-param-changes pattern-key play-param-key true)
   (u/apply-by time (do
                      (log/info "Starting pattern" pattern-key)
-                     (play-pattern time pattern-key)))
+                     (do
+                       ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
+                       (enqueue-param-changes pattern-key play-param-key true)
+                       (play-pattern time pattern-key))))
   true)
 
 (defmethod handle-event :stop-pat

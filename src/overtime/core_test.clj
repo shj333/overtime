@@ -93,12 +93,10 @@
                               [12.0 :set :high-bells :amp 0.01]
                               [15.0 :stop :high-bells]]}
                     {:name   "Section 2"
-                     :length 10
+                     :length 12
                      :events [[0.0 :play :gabor]
                               [5.0 :set :gabor :sustain (map #(/ % (pat/current-value :gabor :freq)) (range 10 0 -1))]]}
-                    {:name   "Done"
-                     :length 0
-                     :events []}])
+                    {:name "Done"}])
 
 (comment
   (otm/init sound-data)

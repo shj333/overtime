@@ -34,7 +34,7 @@
        (+ start-time)))
 
 (defn- play-section
-  [{:keys [name events start-time]} opts]
+  [{:keys [name events start-time] :or {events []}} opts]
   (ot/apply-by start-time #(log/info "Starting section" name))
   (doseq [event-data events]
     (-> (event-time start-time (first event-data))
@@ -74,6 +74,6 @@
   ([sections-data opts]
     ; TODO Add option to start at given section
     ; TODO Add option to skip section
-   (let [start-times (get-start-times (map :length sections-data))
+   (let [start-times (get-start-times (map #(get % :length 0) sections-data))
          sects-data-with-starts (map #(assoc %1 :start-time %2) sections-data start-times)]
      (doseq [section-data sects-data-with-starts] (play-section section-data opts)))))
