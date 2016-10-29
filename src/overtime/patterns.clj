@@ -1,14 +1,20 @@
 (ns overtime.patterns
   (:require [overtone.core :as ot]
-            [overtime.instruments :as instr]
             [overtime.sounds :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
 
 
+(defonce ^:private patterns (atom {}))
 (defonce ^:private dflt-pattern-params {:dur 1000 :staging-period 5000})
 (defonce ^:private play-param-key :play-pattern$)
 
+
+(defn- get-pattern [pattern-key] (u/check-nil (pattern-key @patterns) "Pattern" pattern-key))
+
+(defn- pattern? [key] (contains? @patterns key))
+
+(defn- pattern-keys [] (keys @patterns))
 
 (defn- print-params
   [params]
@@ -18,7 +24,7 @@
 
 (defn- enqueue-param-changes
   [pattern-key & {:as params}]
-  (let [pattern (snd/get-pattern pattern-key)]
+  (let [pattern (get-pattern pattern-key)]
     (log/debug "Enqueueing pattern changes for" (:name @pattern) "to:" (print-params params))
     (swap! pattern update-in [:new-params] merge params)
     true))
@@ -153,20 +159,47 @@
 (defn- play-pattern
   [time pattern-key]
   ; Play events in this stage and set up next stage to be run on a separate thread at first time of that stage's events
-  (->> (snd/get-pattern pattern-key)
+  (->> (get-pattern pattern-key)
        (get-pattern-events time)
        do-pattern-events
        last
        (setup-next-stage play-pattern pattern-key)))
+
+(defn- create-pattern
+  [pattern-key {:keys [synth params]}]
+  ; Each pattern is an atom so we can manage the workflow of the pattern across threads of execution while pattern events are generated.
+  ; All pattern atoms are stored in a containing atom called "patterns " so that we can manage all the created patterns across threads.
+  ; The new-params property of the pattern hash allows changing of the pattern as the pattern is being executed; when pattern changes
+  ; need to occur, the changes are kept in new-params until it is safe to merge them during execution of the pattern.
+  (let [merged-params (merge dflt-pattern-params params)]
+    (->> (atom {:name (name pattern-key) :synth synth :params merged-params :new-params {} :orig-synth synth :orig-params merged-params})
+         (swap! patterns assoc pattern-key))
+    (log/debug "Created pattern" pattern-key)
+    true))
+
 
 
 
 ;
 ; Public API
 ;
+(defn reset-pattern!
+  "Resets pattern to original synth and params values. Useful for restarting patterns that have stopped due to some value in
+  a sequence becoming nil."
+  [pattern-key]
+  (-> (get-pattern pattern-key)
+      (swap! assoc :reset-flag true))
+  true)
 
-(defn create-pattern
-  "Create a new pattern identified by the given key. Uses the given Overtone synth to produce sounds by reading the params map during
+(defn current-value
+  "Returns the current value of the given parameter within the pattern"
+  [pattern-key param-key]
+  (-> (get-pattern pattern-key)
+      deref
+      (get-in [:params param-key])))
+
+(defn init
+  "Create new patterns identified by the given keys. Uses the given Overtone synth to produce sounds by reading the params map during
   each cycle. Each value in the params map can be a lazy sequence or a constant value. If the value (either in a lazy sequence or constant)
   is a keyword, then the sound-param multi-method is used to obtain the value for the current cycle; this is so that busses, effects, etc
   can be set in each pattern event.
@@ -187,20 +220,25 @@
    :pan        (cycle [-1 0 1])
    :amp        0.1
    :dur        25}"
-  [pattern-key {:keys [synth params]}]
-  ; Each pattern is an atom so we can manage the workflow of the pattern across threads of execution while pattern events are generated.
-  ; All pattern atoms are stored in a containing atom called "patterns " so that we can manage all the created patterns across threads.
-  ; The new-params property of the pattern hash allows changing of the pattern as the pattern is being executed; when pattern changes
-  ; need to occur, the changes are kept in new-params until it is safe to merge them during execution of the pattern.
-  (let [merged-params (merge dflt-pattern-params params)]
-    (->> (atom {:name (name pattern-key) :synth synth :params merged-params :new-params {} :orig-synth synth :orig-params merged-params})
-         (snd/add-pattern pattern-key))
-    (log/debug "Created pattern" pattern-key)
-    true))
+  [patterns]
+  (doseq [[key pattern] patterns] (create-pattern key pattern))
+  (log/info "Finished patterns init:" (pattern-keys))
+  true)
 
-(defn play-at
-  "Start playing pattern at the given time. Time is defined in terms of Overtone now function."
-  [time pattern-key]
+
+; Sound event handling
+(defmulti handle-event
+          ; TODO API Doc for handle-event
+          ""
+          (fn [_time [event-type instr-key]]
+            (->> (if (pattern? instr-key) "-pat" "-instr")
+                 (str (name event-type))
+                 keyword)))
+
+(defmethod handle-event :default [_time [event-type]] (log/error "Unknown sound event" event-type))
+
+(defmethod handle-event :play-pat
+  [time [_event-type pattern-key]]
   ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
   (enqueue-param-changes pattern-key play-param-key true)
   (u/apply-by time (do
@@ -208,9 +246,8 @@
                      (play-pattern time pattern-key)))
   true)
 
-(defn stop-at
-  "Stop playing pattern at the given time. Time is defined in terms of Overtone now function."
-  [time pattern-key]
+(defmethod handle-event :stop-pat
+  [time [_event-type pattern-key]]
   ; By setting one of the pattern params to nil, the pattern stops on next read in cycle (see get-pattern-event func)
   ; We use a special pattern param as not to conflict with any params in pattern set by user
   (u/apply-by time (do
@@ -218,35 +255,12 @@
                      (enqueue-param-changes pattern-key play-param-key nil)))
   true)
 
-(defn reset-pattern!
-  "Resets pattern to original synth and params values. Useful for restarting patterns that have stopped due to some value in
-  a sequence becoming nil."
-  [pattern-key]
-  (-> (snd/get-pattern pattern-key)
-      (swap! assoc :reset-flag true))
-  true)
-
-(defn current-value
-  "Returns the current value of the given parameter within the pattern"
-  [pattern-key param-key]
-  (-> (snd/get-pattern pattern-key)
-      deref
-      (get-in [:params param-key])))
-
-(defn init
-  [patterns]
-  (doseq [[key pattern] patterns] (create-pattern key pattern))
-  (log/info "Finished patterns init:" (snd/pattern-keys))
+(defmethod handle-event :set-pat
+  [time [_event-type pattern-key & params]]
+  (u/apply-by time (apply enqueue-param-changes pattern-key params))
   true)
 
 
-
-;
-; Multi method definitions wrt patterns
-;
-(defmethod snd/sound-control :play-pat [time [_sound-control pattern-key]] (play-at time pattern-key))
-(defmethod snd/sound-control :stop-pat [time [_sound-control pattern-key]] (stop-at time pattern-key))
-(defmethod instr/set-params :pat [_type pattern-key & params] (apply enqueue-param-changes pattern-key params))
 
 
 
@@ -259,18 +273,18 @@
                      son (* env (ot/f-sin-osc:ar freq half-pi))]
                  (ot/offset-out:ar out-bus (ot/pan2:ar son pan amp))))
 
-  (create-pattern :gabor1
-                  {:synth  gabor
-                   :params {:out-bus        0
-                            :freq           (cycle [440 220])
-                            :sustain        0.1
-                            :pan            0.0
-                            :amp            0.1
-                            :width          0.25
-                            :dur            1000
-                            :staging-period 2000}})
-  (play-at (+ (ot/now) 1000) :gabor1)
+  (init {:gabor1
+         {:synth  gabor
+          :params {:out-bus        0
+                   :freq           (cycle [440 220])
+                   :sustain        0.1
+                   :pan            0.0
+                   :amp            0.1
+                   :width          0.25
+                   :dur            1000
+                   :staging-period 2000}}})
+  (handle-event (ot/now) [:play :gabor1])
   (enqueue-param-changes :gabor1 :dur 25)
   (enqueue-param-changes :gabor1 :dur 1000)
   (enqueue-param-changes :gabor1 :sustain (map #(/ % (current-value :gabor :freq)) (range 10 0 -1)))
-  (stop-at (+ (ot/now) 1000) :gabor1))
+  (handle-event (ot/now) [:stop :gabor1]))

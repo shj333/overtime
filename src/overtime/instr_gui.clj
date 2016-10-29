@@ -1,5 +1,6 @@
 (ns overtime.instr-gui
-  (:require [seesaw.core :as ss]
+  (:require [overtone.core :as ot]
+            [seesaw.core :as ss]
             [seesaw.mig :as mig]
             [overtime.instruments :as instr]
             [clojure.tools.logging :as log]))
@@ -18,9 +19,11 @@
 
 (defn- update-instr
   [frame-key key val]
-  (let [{:keys [instr-type instr]} (frame-data frame-key)]
-    (log/debug "Frame" frame-key "has event" key "=>" val "for" (or instr-type "") (or instr "unknown"))
-    (if-not (or (nil? instr-type) (nil? instr)) (instr/set-params instr-type instr key val))))
+  (let [{:keys [instr]} (frame-data frame-key)]
+    (log/debug "Frame" frame-key "has event" key "=>" val "for" (or instr "unknown"))
+    (if (nil? instr)
+      (log/warn "No instrument to update" key "=>" val "in frame" frame-key)
+      (instr/handle-event (ot/now) [:set instr key val]))))
 
 (defn- listbox-id [key is-lkup] (keyword (str (if is-lkup "#") (name key) "-lb")))
 

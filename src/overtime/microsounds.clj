@@ -1,6 +1,7 @@
 (ns overtime.microsounds
   (:require [overtone.core :as ot]
             [overtime.busses :as bus]
+            [overtime.instruments :as instr]
             [overtime.probability :as prob]
             [overtime.shapes :as shapes]
             [overtime.sounds :as snd]
@@ -133,6 +134,8 @@
     (random-density-loop [(:rand-sync new-triggers) (:rand-sync new-pans)])
     (swap! triggers merge new-triggers)
     (swap! pans merge new-pans)
+    (instr/add-instrs new-triggers)
+    (instr/add-instrs new-pans)
     true))
 
 

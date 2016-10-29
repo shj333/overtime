@@ -3,6 +3,7 @@
             [overtone.sc.machinery.server.comms :as comms]
             [overtime.busses :as bus]
             [overtime.groups :as grp]
+            [overtime.instruments :as instr]
             [overtime.microsounds :as micro]
             [overtime.patterns :as pat]
             [overtime.sounds :as snd]
@@ -37,7 +38,7 @@
   (ot/apply-by start-time #(log/info "Starting section" name))
   (doseq [event-data events]
     (-> (event-time start-time (first event-data))
-        (snd/sound-control (rest event-data)))))
+        (instr/handle-event (rest event-data)))))
 
 
 
