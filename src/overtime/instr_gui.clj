@@ -84,14 +84,14 @@
                    :items (concat listbox-rows slider-rows))))
 
 (defn show
-  [frame-key & {:keys [title listboxes sliders instr-type instr loc-x loc-y] :or {title "Instr GUI" listboxes [] sliders [] loc-x 0 loc-y 0}}]
+  [frame-key & {:keys [title listboxes sliders instr loc-x loc-y] :or {title "Instr GUI" listboxes [] sliders [] loc-x 0 loc-y 0}}]
   (let [f (ss/frame :title title :content "Placeholder...")
         p (make-panel frame-key listboxes sliders)]
-    (log/debug "Showing GUI for" frame-key ", list boxes:" listboxes ", sliders:" sliders ", instr:" instr-type "-" instr)
+    (log/debug "Showing GUI for" frame-key ", list boxes:" listboxes ", sliders:" sliders ", instr:" instr)
     (ss/config! f :content p)
     (-> f ss/pack! ss/show!)
     (doto f (.setLocation loc-x loc-y))
-    (swap! frames-data assoc frame-key {:frame f :sliders sliders :instr-type instr-type :instr instr})
+    (swap! frames-data assoc frame-key {:frame f :sliders sliders :instr instr})
     f))
 
 (defn- widget
@@ -120,9 +120,9 @@
     true))
 
 (defn set-instr
-  [frame-key instr-type instr]
-  (log/debug "Set instr for" frame-key "to" instr-type instr)
-  (swap! frames-data update frame-key assoc :instr-type instr-type :instr instr))
+  [frame-key instr]
+  (log/debug "Set instr for" frame-key "to" instr)
+  (swap! frames-data update frame-key assoc :instr instr))
 
 (comment
   (def listboxes {:grain-envs [:guass :expodec :sinc1 :sinc2 :sinc3 :sinc4 :sinc5 :sinc6 :sinc7 :sinc8 :sinc9 :sinc10]
@@ -135,5 +135,4 @@
             :sliders sliders
             :loc-x 2600
             :loc-y 200
-            :instr-type :instr
             :instr :foo))
