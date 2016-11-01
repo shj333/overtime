@@ -237,28 +237,33 @@
 
 (defmethod handle-event :default [_time [event-type]] (log/error "Unknown sound event" event-type))
 
+; TODO These can be handled by a macro to keep things DRY (see instruments ns also)
 (defmethod handle-event :play-pat
   [time [_event-type pattern-key]]
-  (u/apply-by time (do
-                     (log/info "Starting pattern" pattern-key)
-                     (do
-                       ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
-                       (enqueue-param-changes pattern-key play-param-key true)
-                       (play-pattern time pattern-key))))
+  (u/apply-by time
+              (do
+                ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
+                (enqueue-param-changes pattern-key play-param-key true)
+                (log/info "Starting pattern" pattern-key)
+                (play-pattern time pattern-key)))
   true)
 
 (defmethod handle-event :stop-pat
   [time [_event-type pattern-key]]
   ; By setting one of the pattern params to nil, the pattern stops on next read in cycle (see get-pattern-event func)
   ; We use a special pattern param as not to conflict with any params in pattern set by user
-  (u/apply-by time (do
-                     (log/info "Stopping pattern" pattern-key)
-                     (enqueue-param-changes pattern-key play-param-key nil)))
+  (u/apply-by time
+              (do
+                (log/info "Stopping pattern" pattern-key)
+                (enqueue-param-changes pattern-key play-param-key nil)))
   true)
 
 (defmethod handle-event :set-pat
   [time [_event-type pattern-key & params]]
-  (u/apply-by time (apply enqueue-param-changes pattern-key params))
+  (u/apply-by time
+              (do
+                (log/info "Setting params" (u/print-param-keys params) "for pattern" pattern-key)
+                (apply enqueue-param-changes pattern-key params)))
   true)
 
 

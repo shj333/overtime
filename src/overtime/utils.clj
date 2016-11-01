@@ -19,3 +19,8 @@
   [time body]
   `(ot/apply-by ~time #(try ~body
                             (catch Exception e# (log/error (str "Caught exception in apply-by " ~time ", " '~body ": ") e#)))))
+
+(defn print-param-keys
+  [params]
+  (->> (take-nth 2 params)
+       (clojure.string/join ", ")))
