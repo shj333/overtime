@@ -125,14 +125,14 @@
   (swap! frames-data update frame-key assoc :instr instr))
 
 (comment
-  (def listboxes {:grain-envs [:guass :expodec :sinc1 :sinc2 :sinc3 :sinc4 :sinc5 :sinc6 :sinc7 :sinc8 :sinc9 :sinc10]
-                  :pans       [:left :right :center]})
+  (def listboxes {:grain-env [:guass :expodec :sinc1 :sinc2 :sinc3 :sinc4 :sinc5 :sinc6 :sinc7 :sinc8 :sinc9 :sinc10]
+                  :pan       [:pan-left :pan-right :pan-center]})
   (def sliders {:grain-dur {:min 0.05 :max 2.0 :init-val 0.05 :slider-val-mult 100.0}
                 :freq      {:min 10 :max 20000 :init-val 100}})
   (show key
-            :title "Test GUI"
-            :listboxes listboxes
-            :sliders sliders
-            :loc-x 2600
-            :loc-y 200
-            :instr :foo))
+        :title "Test GUI"
+        :listboxes listboxes
+        :sliders sliders
+        :loc-x 2600
+        :loc-y 200
+        :instr :foo))

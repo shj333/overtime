@@ -60,7 +60,7 @@
                                 :high-bells {:synth  #'my-grain-sin
                                              :params {:env-buf        :expodec
                                                       :trigger-bus    :rand-sync
-                                                      :pan-bus        :rand-sync
+                                                      :pan-bus        :pan-rand-sync
                                                       :grain-dur      2.0
                                                       :freq           2000
                                                       :freq-dev-noise 1000
@@ -69,7 +69,7 @@
                                 :low-rumble {:synth  #'my-grain-sin
                                              :params {:env-buf        :guass
                                                       :trigger-bus    :async
-                                                      :pan-bus        :async
+                                                      :pan-bus        :pan-async
                                                       :grain-dur      2.0
                                                       :freq           100
                                                       :freq-dev-noise 10

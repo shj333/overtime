@@ -83,14 +83,14 @@
     [density (+ prev-time wait-time)]))
 
 (defn random-density-loop
-  [insts]
+  [instrs]
   (let [num-densities 50
         start-time (+ (ot/now) 500)
         densities-times (rest (take num-densities (iterate #(random-density %) [0 start-time])))
         next-time (last (last densities-times))]
     (doseq [[density time] densities-times]
-      (ot/at time (doseq [inst insts] (ot/ctl inst :density density))))
-    (ot/apply-by next-time #'random-density-loop [insts])))
+      (ot/at time (doseq [instr instrs] (ot/ctl instr :density density))))
+    (ot/apply-by next-time #'random-density-loop [instrs])))
 
 (defn set-random-density-range
   [low high]
@@ -101,7 +101,7 @@
 ;
 ; Creates busses and instruments for triggers and pans that drive grain synths
 ;
-(defn- make-busses-insts
+(defn- make-busses-instrs
   [synth-defs bus-category]
   (bus/add-busses bus-category (keys synth-defs) :control 1)
   (into {} (for [[key synth-def] synth-defs] [key (synth-def :out (bus/bus bus-category key))])))
@@ -111,27 +111,29 @@
                             :async     async-trigger
                             :coin      coin-trigger})
 
-(defonce core-pan-defs {:left         const-pan
-                        :center-left  const-pan
-                        :center       const-pan
-                        :center-right const-pan
-                        :right        const-pan})
+(defonce core-pan-defs {:pan-left         const-pan
+                        :pan-center-left  const-pan
+                        :pan-center       const-pan
+                        :pan-center-right const-pan
+                        :pan-right        const-pan})
+
+(defn- make-pan-key [key] (keyword (str "pan-" (name key))))
 
 (defn- make-triggers-pans
   [trigger-defs]
   (let [all-trigger-defs (merge core-trigger-defs trigger-defs)
-        new-triggers (make-busses-insts all-trigger-defs :trigger)
-        pan-defs (into {} (for [k (keys all-trigger-defs)] [k rand-pan]))
+        new-triggers (make-busses-instrs all-trigger-defs :trigger)
+        pan-defs (into {} (for [k (map make-pan-key (keys all-trigger-defs))] [k rand-pan]))
         all-pan-defs (merge core-pan-defs pan-defs)
-        new-pans (make-busses-insts all-pan-defs :pan)]
+        new-pans (make-busses-instrs all-pan-defs :pan)]
     (log/debug "Created triggers" (keys new-triggers))
     (log/debug "Created pans" (keys new-pans))
-    (ot/ctl (:left new-pans) :pan -1)
-    (ot/ctl (:center-left new-pans) :pan -0.5)
-    (ot/ctl (:center new-pans) :pan 0)
-    (ot/ctl (:center-right new-pans) :pan 0.5)
-    (ot/ctl (:right new-pans) :pan 1)
-    (random-density-loop [(:rand-sync new-triggers) (:rand-sync new-pans)])
+    (ot/ctl (:pan-left new-pans) :pan -1)
+    (ot/ctl (:pan-center-left new-pans) :pan -0.5)
+    (ot/ctl (:pan-center new-pans) :pan 0)
+    (ot/ctl (:pan-center-right new-pans) :pan 0.5)
+    (ot/ctl (:pan-right new-pans) :pan 1)
+    (random-density-loop [(:rand-sync new-triggers) (:pan-rand-sync new-pans)])
     (swap! triggers merge new-triggers)
     (swap! pans merge new-pans)
     (instr/add-instrs new-triggers)
