@@ -1,9 +1,7 @@
 (ns overtime.core-test
   (:require [overtone.core :as ot]
             [overtime.core :as otm]
-            [overtime.microsounds :as micro]
-            [overtime.patterns :as pat]
-            [overtime.instruments :as instr]))
+            [overtime.microsounds :as micro]))
 
 (defn def-synths
   []
@@ -95,14 +93,14 @@
                     {:name   "Section 2"
                      :length 12
                      :events [[0.0 :play :gabor]
-                              [5.0 :set :gabor :sustain (map #(/ % (pat/current-value :gabor :freq)) (range 10 0 -1))]]}
+                              [5.0 :set :gabor :sustain (map #(/ % (otm/pattern-value :gabor :freq)) (range 10 0 -1))]]}
                     {:name "Done"}])
 
 (comment
   (otm/init sound-data)
   (otm/play-sections sections-data)
-  (instr/handle-event (ot/now) [:play :gabor])
-  (instr/handle-event (ot/now) [:stop :gabor])
-  (pat/reset-pattern! :gabor)
-  (instr/handle-event (ot/now) [:set :gabor :sustain 0.02])
+  (otm/do-sound-cmd [:play :gabor])
+  (otm/do-sound-cmd [:stop :gabor])
+  (otm/do-sound-cmd [:reset :gabor])
+  (otm/do-sound-cmd [:set :gabor :sustain 0.02])
   (ot/sc-osc-debug-off))

@@ -1,8 +1,7 @@
 (ns overtime.instr-gui
-  (:require [overtone.core :as ot]
+  (:require [overtime.sound-commands :as cmd]
             [seesaw.core :as ss]
             [seesaw.mig :as mig]
-            [overtime.instruments :as instr]
             [clojure.tools.logging :as log]))
 
 (ss/native!)
@@ -23,7 +22,7 @@
     (log/debug "Frame" frame-key "has event" key "=>" val "for" (or instr "unknown"))
     (if (nil? instr)
       (log/warn "No instrument to update" key "=>" val "in frame" frame-key)
-      (instr/handle-event (ot/now) [:set instr key val]))))
+      (cmd/do-sound-cmd [:set instr key val]))))
 
 (defn- listbox-id [key is-lkup] (keyword (str (if is-lkup "#") (name key) "-lb")))
 

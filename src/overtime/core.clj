@@ -2,8 +2,8 @@
   (:require [overtone.core :as ot]
             [overtone.sc.machinery.server.comms :as comms]
             [overtime.busses :as bus]
+            [overtime.sound-commands :as cmd]
             [overtime.groups :as grp]
-            [overtime.instruments :as instr]
             [overtime.microsounds :as micro]
             [overtime.patterns :as pat]
             [overtime.sounds :as snd]
@@ -38,7 +38,7 @@
   (ot/apply-by start-time #(log/info "Starting section" name))
   (doseq [event-data events]
     (-> (event-time start-time (first event-data))
-        (instr/handle-event (rest event-data)))))
+        (cmd/do-sound-cmd (rest event-data)))))
 
 
 
@@ -77,3 +77,14 @@
    (let [start-times (get-start-times (map #(get % :length 0) sections-data))
          sects-data-with-starts (map #(assoc %1 :start-time %2) sections-data start-times)]
      (doseq [section-data sects-data-with-starts] (play-section section-data opts)))))
+
+(defn pattern-value
+  "Returns the current value of the given parameter within the pattern"
+  [pattern-key param-key]
+  (pat/current-value pattern-key param-key))
+
+(defn do-sound-cmd
+  ; TODO Doc for API
+  ""
+  [event-data]
+  (cmd/do-sound-cmd event-data))

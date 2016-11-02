@@ -12,8 +12,6 @@
 
 (defn- get-pattern [pattern-key] (u/check-nil (pattern-key @patterns) "Pattern" pattern-key))
 
-(defn- pattern? [key] (contains? @patterns key))
-
 (defn- pattern-keys [] (keys @patterns))
 
 (defn- print-params
@@ -183,21 +181,6 @@
 ;
 ; Public API
 ;
-(defn reset-pattern!
-  "Resets pattern to original synth and params values. Useful for restarting patterns that have stopped due to some value in
-  a sequence becoming nil."
-  [pattern-key]
-  (-> (get-pattern pattern-key)
-      (swap! assoc :reset-flag true))
-  true)
-
-(defn current-value
-  "Returns the current value of the given parameter within the pattern"
-  [pattern-key param-key]
-  (-> (get-pattern pattern-key)
-      deref
-      (get-in [:params param-key])))
-
 (defn init
   "Create new patterns identified by the given keys. Uses the given Overtone synth to produce sounds by reading the params map during
   each cycle. Each value in the params map can be a lazy sequence or a constant value. If the value (either in a lazy sequence or constant)
@@ -225,47 +208,48 @@
   (log/info "Finished patterns init:" (pattern-keys))
   true)
 
+(defn pattern?
+  "Returns true if the given key denotes a pattern object (as opposed to a synth instrument object)"
+  [key]
+  (contains? @patterns key))
 
-; Sound event handling
-(defmulti handle-event
-          ; TODO API Doc for handle-event
-          ""
-          (fn [_time [event-type instr-key]]
-            (->> (if (pattern? instr-key) "-pat" "-instr")
-                 (str (name event-type))
-                 keyword)))
+(defn start-pattern
+  "Start playing the given pattern with the given start time"
+  [time pattern-key]
+  ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
+  (enqueue-param-changes pattern-key play-param-key true)
+  (log/info "Starting pattern" pattern-key)
+  (play-pattern time pattern-key))
 
-(defmethod handle-event :default [_time [event-type]] (log/error "Unknown sound event" event-type))
-
-; TODO These can be handled by a macro to keep things DRY (see instruments ns also)
-(defmethod handle-event :play-pat
-  [time [_event-type pattern-key]]
-  (u/apply-by time
-              (do
-                ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
-                (enqueue-param-changes pattern-key play-param-key true)
-                (log/info "Starting pattern" pattern-key)
-                (play-pattern time pattern-key)))
-  true)
-
-(defmethod handle-event :stop-pat
-  [time [_event-type pattern-key]]
+(defn stop-pattern
+  "Stop playing of the given pattern"
+  [pattern-key]
   ; By setting one of the pattern params to nil, the pattern stops on next read in cycle (see get-pattern-event func)
   ; We use a special pattern param as not to conflict with any params in pattern set by user
-  (u/apply-by time
-              (do
-                (log/info "Stopping pattern" pattern-key)
-                (enqueue-param-changes pattern-key play-param-key nil)))
+  (log/info "Stopping pattern" pattern-key)
+  (enqueue-param-changes pattern-key play-param-key nil))
+
+(defn change-pattern
+  "Change the parameters of the given pattern"
+  [pattern-key params]
+  (log/info "Setting params" (u/print-param-keys params) "for pattern" pattern-key)
+  (apply enqueue-param-changes pattern-key params))
+
+(defn reset-pattern!
+  "Resets pattern to original synth and params values. Useful for restarting patterns that have stopped due to some value in
+  a sequence becoming nil."
+  [pattern-key]
+  (log/info "Resetting pattern" pattern-key)
+  (-> (get-pattern pattern-key)
+      (swap! assoc :reset-flag true))
   true)
 
-(defmethod handle-event :set-pat
-  [time [_event-type pattern-key & params]]
-  (u/apply-by time
-              (do
-                (log/info "Setting params" (u/print-param-keys params) "for pattern" pattern-key)
-                (apply enqueue-param-changes pattern-key params)))
-  true)
-
+(defn current-value
+  "Returns the current value of the given parameter within the pattern"
+  [pattern-key param-key]
+  (-> (get-pattern pattern-key)
+      deref
+      (get-in [:params param-key])))
 
 
 
@@ -289,8 +273,8 @@
                    :width          0.25
                    :dur            1000
                    :staging-period 2000}}})
-  (handle-event (ot/now) [:play :gabor1])
-  (enqueue-param-changes :gabor1 :dur 25)
-  (enqueue-param-changes :gabor1 :dur 1000)
-  (enqueue-param-changes :gabor1 :sustain (map #(/ % (current-value :gabor :freq)) (range 10 0 -1)))
-  (handle-event (ot/now) [:stop :gabor1]))
+  (start-pattern (ot/now) :gabor1)
+  (change-pattern :gabor1 [:dur 25])
+  (change-pattern :gabor1 [:dur 1000])
+  (change-pattern :gabor1 [:sustain (map #(/ % (current-value :gabor :freq)) (range 10 0 -1))])
+  (stop-pattern :gabor1))

@@ -1,5 +1,6 @@
 (ns overtime.utils
-  (:require [clojure.tools.logging :as log]))
+  (:require [overtone.core :as ot]
+            [clojure.tools.logging :as log]))
 
 (defn check-nil
   [val & labels]
