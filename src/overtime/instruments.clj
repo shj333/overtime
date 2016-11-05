@@ -1,3 +1,4 @@
+; TODO Rename this namespace to synths and replace all *instr* with *synth* ?
 (ns overtime.instruments
   (:require [overtone.core :as ot]
             [overtime.sounds :as snd]
@@ -84,3 +85,8 @@
   [instr-key]
   (ot/kill (instr instr-key))
   true)
+
+(defn instr?
+  "Returns true if the given key denotes a synth instrument"
+  [key]
+  (contains? @instrs key))
