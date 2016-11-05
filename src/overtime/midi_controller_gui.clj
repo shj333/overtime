@@ -3,7 +3,7 @@
             [overtime.instr-gui :as gui]
             [overtime.midi-controllers :as mc]))
 
-(defn- dflt-slider-f [val-f min max] (* val-f (- max min)))
+(defn- dflt-slider-f [val-f min max] (+ (* val-f (- max min)) min))
 
 (defn- init-xs-hdlrs
   [frame-key & {:keys [instr device sliders play stop] :or {sliders []}}]
