@@ -1,16 +1,15 @@
 (ns overtime.microsounds
   (:require [overtone.core :as ot]
             [overtime.busses :as bus]
+            [overtime.buffers :as buf]
             [overtime.instruments :as instr]
             [overtime.probability :as prob]
             [overtime.shapes :as shapes]
-            [overtime.sounds :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
 
 
 (defonce ^:private random-density-range (atom [2 20]))
-(defonce ^:private env-bufs (atom {}))
 (defonce ^:private triggers (atom {}))
 (defonce ^:private pans (atom {}))
 
@@ -31,13 +30,7 @@
   [num-instances length]
   (into {} (for [idx (range 1 (inc num-instances))] [(keyword (str "sinc" idx)) (make-sinc idx length)])))
 
-(defn env->buffer
-  [env-signals]
-  (let [b (ot/buffer (count env-signals))]
-    (ot/buffer-write! b env-signals)
-    b))
-
-(defn make-env-bufs [env-signals] (into {} (for [[k env] env-signals] [k (env->buffer env)])))
+(defn- make-env-bufs [env-signals] (into {} (for [[k signals] env-signals] [k (buf/signals->buffer signals)])))
 
 
 (defonce env-data {:guass       (ot/env-sine)
@@ -50,7 +43,7 @@
                    :perc2       (ot/env-perc 0.1 0.9)})
 
 (defonce env-signals (merge (make-sincs 10 400)
-                            (into {} (for [[k env] env-data] [k (shapes/env->signal env 400)]))))
+                            (into {} (for [[k env] env-data] [k (shapes/env->signals env 400)]))))
 
 
 
@@ -82,7 +75,7 @@
         [_ prev-time] prev-density-time]
     [density (+ prev-time wait-time)]))
 
-(defn random-density-loop
+(defn- random-density-loop
   [instrs]
   (let [num-densities 50
         start-time (+ (ot/now) 500)
@@ -92,7 +85,7 @@
       (ot/at time (doseq [instr instrs] (ot/ctl instr :density density))))
     (ot/apply-by next-time #'random-density-loop [instrs])))
 
-(defn set-random-density-range
+(defn- set-random-density-range
   [low high]
   (log/info "Setting random density range to" low "->" high)
   (reset! random-density-range [low high]))
@@ -142,11 +135,9 @@
 
 
 ;
-; Accessors to envelope buffers, triggers, pans
+; Public API
 ;
-(defn env-buf [key] (u/check-nil (key @env-bufs) "Env Buf" key))
-(defn env-buf-keys [] (keys @env-bufs))
-
+; Accessors to triggers, pans
 (defn trigger [key] (u/check-nil (key @triggers) "Trigger" key))
 (defn trigger-keys [] (keys @triggers))
 (defn pan [key] (u/check-nil (key @pans) "Pan" key))
@@ -158,14 +149,12 @@
 (defn init
   ([] (init {}))
   ([{:keys [triggers density-range]}]
-   (swap! env-bufs merge (make-env-bufs env-signals))
+   (buf/add-buffers :env (make-env-bufs env-signals))
    (make-triggers-pans triggers)
    (when density-range (apply set-random-density-range density-range))
-   (log/info "Finished microsounds init, env-bufs:" (env-buf-keys) ", triggers:" (trigger-keys) ", pans:" (pan-keys))
+   (log/info "Finished microsounds init, env bufs:" (buf/buffer-keys :env) ", triggers:" (trigger-keys) ", pans:" (pan-keys))
    true))
 
-
-(defmethod snd/sound-param-val :env-buf [_type val] (env-buf val))
 
 (comment
   (micro/init {:coin2 micro/coin-trigger}))

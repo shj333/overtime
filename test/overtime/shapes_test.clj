@@ -5,7 +5,7 @@
 
 (defn- rounded-signal
   [env length]
-  (->> (shapes/env->signal env length)
+  (->> (shapes/env->signals env length)
        (map #(Math/round (* 1000.0 %)))))
 
 (deftest env->signal

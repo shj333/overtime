@@ -2,6 +2,7 @@
   (:require [overtone.core :as ot]
             [overtone.sc.machinery.server.comms :as comms]
             [overtime.busses :as bus]
+            [overtime.buffers :as buf]
             [overtime.sound-commands :as cmd]
             [overtime.groups :as grp]
             [overtime.microsounds :as micro]
@@ -47,19 +48,22 @@
 ; Public API
 ;
 (defn init
-  "Initialize Overtime system by connecting to SC Server and initializing busses, SC groups, synths, patterns and microsounds. The keyed
+  ; TODO More details in code doc for params to init function
+  "Initialize Overtime system by connecting to SC Server and initializing busses, buffers SC groups, synths, patterns and microsounds. The keyed
   parameters are:
-    - busses
-    - micro
-    - def-synths-f (optional)
-    - sounds
-    - patterns
+    - busses (defaults to no created busses)
+    - buffers (defaults to no additional busses)
+    - micro (defaults to ???)
+    - def-synths-f (defaults to no created synths)
+    - sounds (defaults to no defined sounds)
+    - patterns (defaults to no created patterns)
     - sc-port (defaults to 4445)"
-  [{:keys [busses micro def-synths-f sounds patterns sc-port] :or {sc-port 4445}}]
+  [{:keys [busses buffers micro def-synths-f sounds patterns sc-port] :or {busses {} buffers {} sc-port 4445}}]
   (if (ot/server-disconnected?) (ot/connect-external-server sc-port))
   (check-keys sounds patterns)
   (grp/init)
   (bus/init busses)
+  (buf/init buffers)
   (micro/init micro)
   (if def-synths-f (define-synths def-synths-f))
   (snd/init sounds)

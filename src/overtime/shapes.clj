@@ -119,7 +119,7 @@
     (->> (map vector (stage-levels stages) (stage-times stages) (stage-shapes stages))
          (map flatten))))
 
-(defn env->signal
+(defn env->signals
   [env length]
   (let [env-stages (env-stages env)
         ratio (/ 1.0 (- length 1))]
