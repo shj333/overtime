@@ -36,6 +36,7 @@
 (defonce env-data {:guass       (ot/env-sine)
                    :quasi-guass (ot/envelope [0, 1, 1, 0] [0.33, 0.34, 0.33] :sin)
                    :linear      (ot/envelope [0, 1, 1, 0] [0.33, 0.34, 0.33] :lin)
+                   ; FIXME View of welch env does not look right
                    :welch       (ot/envelope [0, 1, 1, 0] [0.33, 0.34, 0.33] :welch)
                    :expodec     (ot/envelope [1, 0.001] [1] :exp)
                    :rexpodec    (ot/envelope [0.001, 1] [1] :exp)

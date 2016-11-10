@@ -1,3 +1,4 @@
+; TODO Rename this namespace? gui? sound-cmd-gui?
 (ns overtime.instr-gui
   (:require [overtime.sound-commands :as cmd]
             [seesaw.core :as ss]
@@ -64,6 +65,7 @@
        (ss/config! slider :value)))
 
 (defn- make-slider-row
+  ; TODO Get init-val from synth or pattern -- is this possible?
   [frame-key [slider-key {:keys [min max init-val slider-val-mult] :or {slider-val-mult slider-val-mult-dflt}}]]
   (let [key-str (name slider-key)
         slider (make-slider slider-key min max init-val slider-val-mult)

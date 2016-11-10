@@ -52,7 +52,7 @@
   "Initialize Overtime system by connecting to SC Server and initializing busses, buffers SC groups, synths, patterns and microsounds. The keyed
   parameters are:
     - busses (defaults to no created busses)
-    - buffers (defaults to no additional busses)
+    - buffers (defaults to no additional buffers)
     - micro (defaults to ???)
     - def-synths-f (defaults to no created synths)
     - sounds (defaults to no defined sounds)

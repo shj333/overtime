@@ -39,7 +39,7 @@
   "View buffer as X/Y plot using Incanter view"
   [category key]
   (let [buf (buffer category key)
-        buf-vals (into '() (ot/buffer-read buf))]
+        buf-vals (reverse (into '() (ot/buffer-read buf)))]
     (-> (ot/num-frames buf)
         range
         (incanter.charts/xy-plot buf-vals :title (str (name category) " buffer: " (name key)) :x-label "range" :y-label "buffer vals")
@@ -53,7 +53,7 @@
 (defn- init-buffers
   [category buffers-map]
   (log/debug "Creating buffers for category" category "=>" (keys buffers-map))
-  (into {} (for [[key gen-signals-f] buffers-map] [key (signals->buffer (gen-signals-f))])))
+  (into {} (for [[key signals] buffers-map] [key (signals->buffer signals)])))
 
 (defn init
   ""
