@@ -43,7 +43,7 @@
     (-> (ot/num-frames buf)
         range
         (incanter.charts/xy-plot buf-vals :title (str (name category) " buffer: " (name key)) :x-label "range" :y-label "buffer vals")
-        incanter.core/view)))
+        (incanter.core/view :width 400 :height 320))))
 
 (defn view-category-buffers
   "View buffer as X/Y plot using Incanter view"
