@@ -1,5 +1,6 @@
 (ns overtime.shapes
-  (:require [overtone.sc.envelope :as ot]))
+  (:require [incanter core charts datasets]
+            [overtone.sc.envelope :as ot]))
 
 
 (defmulti gen-shape (fn [stage _pos] (nth stage 4)))
@@ -41,6 +42,7 @@
        (* (- y2 y1)
           (Math/sin (* Math/PI 0.5 pos))))))
 
+; FIXME Overtone code does not use a keyword for curve but instead uses 5
 (defmethod gen-shape 5
   [stage pos]
   (let [[y1 y2 _ _ _ curvature] stage]
@@ -70,6 +72,8 @@
 
 
 
+
+
 (defn- signal-pos
   [time start-time end-time]
   (->> (- end-time start-time)
@@ -85,15 +89,6 @@
 (defn- final-level
   [env-stages]
   (second (last env-stages)))
-
-(defn- gen-signal
-  [env-stages ratio idx]
-  (let [time (* ratio idx)
-        signal (some #(gen-stage-signal time %) env-stages)]
-    (if (nil? signal)
-      (final-level env-stages)
-      signal)))
-
 
 
 (defn- stage-levels
@@ -113,14 +108,53 @@
   [stages]
   (map #(drop 2 %) (rest stages)))
 
-(defn- env-stages
+
+;
+; Public API
+;
+(defn env-stages
+  ; FIXME better code doc for env-stages
+  "Get the stages for the given envelope as a sequence of envelope stage data. Each envelope stage is a sequence of six values:
+  Start value for stage
+  End value for stage
+  Start time of stage (relative to beginning time of envelope)
+  End time of stage (relative to beginning time of envelope)
+  Shape id of stage (as defined by SC, see multi method gen-shape)
+  Curvature of stage (if shape id is :curve (5))
+  "
   [env]
   (let [stages (partition 4 env)]
     (->> (map vector (stage-levels stages) (stage-times stages) (stage-shapes stages))
          (map flatten))))
 
+(defn env-total-dur
+  [env-stages]
+  (-> (last env-stages)
+      (nth 3)))
+
+(defn signal-at
+  "Returns the signal data for the given envelope (represented as stages for the envelope, see env-stages function) at the given time"
+  [env-stages time]
+  (let [signal (some #(gen-stage-signal time %) env-stages)]
+    (if (nil? signal)
+      (final-level env-stages)
+      signal)))
+
 (defn env->signals
+  ; FIXME better code doc for env->signals
+  "Converts the given envelope to a sequence of signals of the given length"
   [env length]
   (let [env-stages (env-stages env)
+        total-dur (env-total-dur env-stages)
         ratio (/ 1.0 (- length 1))]
-    (map #(gen-signal env-stages ratio %) (range length))))
+    (map #(signal-at env-stages (* total-dur ratio %)) (range length))))
+
+(defn view-env
+  "View envelope as X/Y plot using Incanter view"
+  [env length]
+  (let [signals (env->signals env length)]
+    (-> (range length)
+        (incanter.charts/xy-plot signals :title "Envelope" :x-label "range" :y-label "signals")
+        (incanter.core/view :width 400 :height 320))))
+
+; TODO Store envelopes in an atom: key => {:signals :stages :total-dir} -- similar to busses, buffers

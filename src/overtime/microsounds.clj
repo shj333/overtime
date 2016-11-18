@@ -4,7 +4,7 @@
             [overtime.buffers :as buf]
             [overtime.instruments :as instr]
             [overtime.probability :as prob]
-            [overtime.shapes :as shapes]
+            [overtime.shapes :as shp]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
 
@@ -44,7 +44,7 @@
                    :perc2       (ot/env-perc 0.1 0.9)})
 
 (defonce env-signals (merge (make-sincs 10 400)
-                            (into {} (for [[k env] env-data] [k (shapes/env->signals env 400)]))))
+                            (into {} (for [[k env] env-data] [k (shp/env->signals env 400)]))))
 
 
 

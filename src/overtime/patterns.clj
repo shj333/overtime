@@ -1,5 +1,6 @@
 (ns overtime.patterns
   (:require [overtone.core :as ot]
+            [overtime.shapes :as shp]
             [overtime.sounds :as snd]
             [overtime.utils :as u]
             [clojure.tools.logging :as log]))
@@ -10,6 +11,9 @@
 (defonce ^:private play-param-key :play-pattern$)
 
 
+;
+; Pattern Utils
+;
 (defn- get-pattern [pattern-key] (u/check-nil (pattern-key @patterns) "Pattern" pattern-key))
 
 (defn- pattern-keys [] (keys @patterns))
@@ -20,6 +24,60 @@
   (->> (for [[k v] params] (str k " => " (if (seq? v) "seq" v)))
        (clojure.string/join ", ")))
 
+
+;
+; Event Param Computation
+;
+(defprotocol PatternParam
+  (set-pattern-param [p-param key val])
+  (get-pattern-param [p-param time]))
+
+(defn- pattern-param? [param] (satisfies? PatternParam param))
+
+(defn- setup-param
+  [pat-param key val]
+  (if (pattern-param? pat-param)
+    (set-pattern-param pat-param key val)
+    pat-param))
+
+(defn- setup-params
+  [params key val]
+  (into {} (for [[k pat-param] params] [k (setup-param pat-param key val)])))
+
+(defn- get-value
+  [key val time]
+  (cond
+    ; If value supports PatternParam protocol, evaluate with the protocol
+    (pattern-param? val) (get-pattern-param val time)
+    ; If value is a lazy sequence, get first one in sequence
+    (seq? val) (first val)
+    ; If a keyword was given, this is a sound parameter
+    key (snd/sound-param key val)
+    ; Otherwise use the param value as is
+    :else val))
+
+(defn- this-synth
+  [synth]
+  ; Dereference synth value if synth is defined as a var
+  (let [this-synth-val (get-value nil synth nil)]
+    (if (var? this-synth-val) @this-synth-val this-synth-val)))
+
+(defn- this-synth-params [time params] (into {} (for [[k v] params] [k (get-value k v time)])))
+
+
+(defn- get-next-values
+  [val]
+  ; If value is a lazy sequence, get rest of sequence, otherwise just use value as is
+  (if (seq? val) (next val) val))
+
+(defn- next-synth [synth] (get-next-values synth))
+
+(defn- next-synth-params [params] (into {} (for [[k v] params] [k (get-next-values v)])))
+
+
+;
+; Pattern Stream Modification
+;
 (defn- enqueue-param-changes
   [pattern-key & {:as params}]
   (let [pattern (get-pattern pattern-key)]
@@ -27,17 +85,20 @@
     (swap! pattern update-in [:new-params] merge params)
     true))
 
+(defn- update-pattern
+  [derefed-pattern time]
+  (log/debug "Changing pattern" (:name derefed-pattern) "to:" (print-params (:new-params derefed-pattern)))
+  ; Merge in queued param changes and then reset queue to empty
+  (-> derefed-pattern
+      (update-in [:params] merge (setup-params (:new-params derefed-pattern) :start-time time))
+      (assoc :new-params {})))
+
 (defn- dequeue-param-changes
   ; Pattern is de-referenced since this function is called by swap!
-  [derefed-pattern]
+  [derefed-pattern time]
   (if (empty? (:new-params derefed-pattern))
     derefed-pattern
-    (do
-      (log/debug "Changing pattern" (:name derefed-pattern) "to:" (print-params (:new-params derefed-pattern)))
-      ; Merge in queued param changes and then reset queue to empty
-      (-> derefed-pattern
-          (update-in [:params] merge (:new-params derefed-pattern))
-          (assoc :new-params {})))))
+    (update-pattern derefed-pattern time)))
 
 (defn- reset-pattern
   ; Pattern is de-referenced since this function is called by swap!
@@ -45,60 +106,55 @@
   (log/debug "Resetting pattern" (:name derefed-pattern) "to original synth and params")
   (assoc derefed-pattern :synth (:orig-synth derefed-pattern) :params (:orig-params derefed-pattern) :reset-flag false))
 
-(defn- get-value
-  ([lazy-eval-f val] (get-value lazy-eval-f nil val))
-  ([lazy-eval-f key val]
-   (cond
-     ; If value is a lazy sequence, evaluate with given func
-     (seq? val) (lazy-eval-f val)
-     ; If a keyword was given, this is a sound parameter
-     key (snd/sound-param key val)
-     ; Otherwise use the param value as is
-     true val)))
+(defn- set-start-time
+  ; Pattern is de-referenced since this function is called by swap!
+  [derefed-pattern time]
+  (assoc derefed-pattern :params (setup-params (:params derefed-pattern) :start-time time)))
 
-(defn- this-synth
-  [synth]
-  ; Dereference synth value if synth is defined as a var
-  (let [this-synth-val (get-value first synth)]
-    (if (var? this-synth-val) @this-synth-val this-synth-val)))
 
-(defn- this-synth-params [params] (flatten (for [[k v] params] [k (get-value first k v)])))
+;
+; Pattern Event Generation
+;
+(defn- gen-event
+  [prev-event pattern this-params]
+  (let [{:keys [name synth params]} @pattern
+        ; Get next-time from previous event so we know when to play this pattern event
+        {time :next-time stage-elapsed :stage-elapsed} prev-event
+        this-synth (this-synth synth)
+        this-dur (:dur this-params)
+        flat-params (flatten (seq this-params))
+        next-synth (next-synth synth)
+        next-params (next-synth-params params)]
+    ; Swap in next events in pattern
+    (log/debug "Current event for pattern:" name ", time:" time ", synth:" (get-in this-synth [:sdef :name]) ", params:" flat-params)
+    (swap! pattern assoc :synth next-synth :params next-params)
 
-(defn- next-synth-params [params] (into {} (for [[k v] params] [k (get-value next k v)])))
+    {:synth         this-synth
+     :params        flat-params
+     :time          time
+     :next-time     (+ time this-dur)
+     :stage-elapsed (+ stage-elapsed this-dur)}))
+
+(defn- gen-stop-event
+  [pattern]
+  ; Return nil if pattern is complete indicating that pattern should stop playing
+  (log/debug "Pattern complete:" (:name @pattern))
+  nil)
 
 (defn- get-pattern-event
   [[prev-event pattern]]
-  ; Get next-time from previous event so we know when to play this pattern event
-  (let [{time :next-time stage-dur :stage-dur} prev-event
-        {:keys [name synth params]} @pattern
-        this-synth (this-synth synth)
-        this-params (this-synth-params params)
-        this-dur (get-value first (:dur params))
-        next-synth (get-value next synth)
-        next-params (next-synth-params params)]
-    ; Keep playing pattern until one of the params is nil
-    (if (not-any? nil? this-params)
-      (do
-        (log/debug "Current event for pattern:" name ", time:" time ", synth:" (get-in this-synth [:sdef :name]) ", params:" this-params)
-        ; Swap in next events in pattern
-        (swap! pattern assoc :synth next-synth :params next-params)
-        ; Pass back this event and pattern so we can iterate over this function and create a lazy sequence
-        [{:synth     this-synth
-          :params    this-params
-          :time      time
-          :next-time (+ time this-dur)
-          :stage-dur (+ stage-dur this-dur)}
-         pattern])
+  ; Keep generating pattern events until one of the pattern params is nil
+  (let [this-params (this-synth-params (:next-time prev-event) (:params @pattern))]
+    (if (some nil? (vals this-params))
+      (gen-stop-event pattern)
 
-      ; Return nil if pattern is complete indicating that pattern should stop playing
-      (do
-        (log/debug "Pattern complete:" name)
-        nil))))
+      ; Pass back event data and pattern so we can iterate over this function and create a lazy sequence
+      [(gen-event prev-event pattern this-params) pattern])))
 
 (defn- is-not-stage-complete?
   [staging-period event]
-  ; Stage is complete if next event is nil OR total duration of events in this stage has gone beyond staging period
-  (-> (or (nil? event) (>= (:stage-dur event) staging-period))
+  ; Stage is complete if next event is nil OR elapsed time of events in this stage has gone beyond staging period
+  (-> (or (nil? event) (>= (:stage-elapsed event) staging-period))
       not))
 
 (defn- get-pattern-events
@@ -108,15 +164,14 @@
 
   ; Merge any queued changes into pattern before generating new events. We can safely do this here since we are between
   ; generation of events
-  (swap! pattern dequeue-param-changes)
+  (swap! pattern dequeue-param-changes time)
 
   ; Get pattern events that go in current stage (length of stage defined by pattern's staging-period). We keep the time
-  ; of the next event in pattern in :next-time value and the total duration of events in this stage in :stage-dur value
-  ; within pattern.
+  ; of the next event in pattern in :next-time and the elapsed time of events in this stage in :stage-elapsed.
   (let [staging-period (get-in @pattern [:params :staging-period])
         ; For first event in this stage, call get-pattern-event function using a previous event that declares
         ; the "next time" to be at time of first event and staging duration reset to 0
-        [first-event] (get-pattern-event [{:next-time time :stage-dur 0} pattern])
+        [first-event] (get-pattern-event [{:next-time time :stage-elapsed 0} pattern])
         ; Set up lazy sequence of events remaining in pattern
         lazy-events (iterate get-pattern-event [first-event pattern])
         ; Split up lazy list into events in this stage and those in future stages
@@ -124,6 +179,11 @@
     ; We need to take the first event of tail since it's already been consumed within lazy sequence in management above
     (concat head (take 1 tail))))
 
+
+
+;
+; Pattern Control
+;
 (defn- convert-for-s_new
   [param]
   ; We use "/s_new" OSC command instead of synth function for each pattern event (more efficient), so we have to convert the event's
@@ -163,29 +223,16 @@
        last
        (setup-next-stage play-pattern pattern-key)))
 
-(defn- create-pattern
-  [pattern-key {:keys [synth params]}]
-  ; Each pattern is an atom so we can manage the workflow of the pattern across threads of execution while pattern events are generated.
-  ; All pattern atoms are stored in a containing atom called "patterns " so that we can manage all the created patterns across threads.
-  ; The new-params property of the pattern hash allows changing of the pattern as the pattern is being executed; when pattern changes
-  ; need to occur, the changes are kept in new-params until it is safe to merge them during execution of the pattern.
-  (let [merged-params (merge dflt-pattern-params params)]
-    (->> (atom {:name (name pattern-key) :synth synth :params merged-params :new-params {} :orig-synth synth :orig-params merged-params})
-         (swap! patterns assoc pattern-key))
-    (log/debug "Created pattern" pattern-key)
-    true))
-
-
-
 
 ;
 ; Public API
 ;
-(defn init
-  "Create new patterns identified by the given keys. Uses the given Overtone synth to produce sounds by reading the params map during
-  each cycle. Each value in the params map can be a lazy sequence or a constant value. If the value (either in a lazy sequence or constant)
-  is a keyword, then the sound-param multi-method is used to obtain the value for the current cycle; this is so that busses, effects, etc
-  can be set in each pattern event.
+(defn create-pattern
+  "Create a new pattern identified by the given key. Uses the given Overtone synth to produce sounds by reading the params map during
+  each cycle. The synth param can be a lazy sequence that is evaluated with each pattern event generation. Each value in the params map
+  can also be a lazy sequence (or a constant value). If the value (either in a lazy sequence or constant) is a keyword, then the
+  overtime.sounds/sound-param function is used to obtain the value for the current cycle ; this is so that busses, effects, etc can
+  be set in each pattern event.
 
   Patterns are lazy, so we need to realize them to generate their events. Pattern events are created together in a single thread until the
   staging-period period has elapsed in order to cut down on the number of threads that are needed to generate the pattern events. This is
@@ -196,13 +243,52 @@
   :dur - Duration of each event in the pattern in milliseconds. Default: 1000ms
   :staging-period - Duration of of each staging of pattern events, in milliseconds. Default: 5000ms
 
-  Example params map:
-  {:out-bus    :reverb1
-   :freq       (cycle [440 220])
-   :sustain    0.1
-   :pan        (cycle [-1 0 1])
-   :amp        0.1
-   :dur        25}"
+  Example pattern:
+  {:synth  #'syn/gabor
+   :params {:out            0
+            :freq           (cycle 1000 1500 2000)
+            :sustain        (cycle 0.02 0.04 0.06)
+            :pan            (cycle -1.0 0.0 1.0)
+            :amp            0.2
+            :dur            500
+            :staging-period 1000}}"
+  [pattern-key {:keys [synth params]}]
+  ; Each pattern is an atom so we can manage the workflow of the pattern across threads of execution while pattern events are generated.
+  ; All pattern atoms are stored in a containing atom called "patterns " so that we can manage all the created patterns across threads.
+  ; The new-params property of the pattern hash allows changing of the pattern as the pattern is being executed; when pattern changes
+  ; need to occur, the changes are kept in new-params until it is safe to merge them during execution of the pattern.
+  (let [merged-params (-> (merge dflt-pattern-params params)
+                          (setup-params :pattern-key pattern-key))]
+    (->> (atom {:name (name pattern-key) :synth synth :params merged-params :new-params {} :orig-synth synth :orig-params merged-params})
+         (swap! patterns assoc pattern-key))
+    (log/debug "Created pattern" pattern-key)
+    true))
+
+(defn init
+  "Create new patterns identified by the given keys. Uses the given Overtone synth to produce sounds by reading the params map during
+  each cycle. The synth param can be a lazy sequence that is evaluated with each pattern event generation. Each value in the params map
+  can also be a lazy sequence (or a constant value). If the value (either in a lazy sequence or constant) is a keyword, then the
+  overtime.sounds/sound-param function is used to obtain the value for the current cycle ; this is so that busses, effects, etc can
+  be set in each pattern event.
+
+  Patterns are lazy, so we need to realize them to generate their events. Pattern events are created together in a single thread until the
+  staging-period period has elapsed in order to cut down on the number of threads that are needed to generate the pattern events. This is
+  especially useful with microsound-based patterns.
+
+  The paramters depend on the synth definition. However, two special parameters are used when playing the cycle:
+
+  :dur - Duration of each event in the pattern in milliseconds. Default: 1000ms
+  :staging-period - Duration of of each staging of pattern events, in milliseconds. Default: 5000ms
+
+  Example pattern:
+  {:synth  #'syn/gabor
+   :params {:out            0
+            :freq           (cycle 1000 1500 2000)
+            :sustain        (cycle 0.02 0.04 0.06)
+            :pan            (cycle -1.0 0.0 1.0)
+            :amp            0.2
+            :dur            500
+            :staging-period 1000}}"
   [patterns]
   (doseq [[key pattern] patterns] (create-pattern key pattern))
   (log/info "Finished patterns init:" (pattern-keys))
@@ -218,6 +304,10 @@
   [time pattern-key]
   ; Reset play-param in case it was set to nil to stop the pattern previously (see stop function)
   (enqueue-param-changes pattern-key play-param-key true)
+
+  ; Set start time in any PatternParam's
+  (swap! (get-pattern pattern-key) set-start-time time)
+
   (log/info "Starting pattern" pattern-key)
   (play-pattern time pattern-key))
 
@@ -247,34 +337,60 @@
 (defn current-value
   "Returns the current value of the given parameter within the pattern"
   [pattern-key param-key]
-  (-> (get-pattern pattern-key)
-      deref
-      (get-in [:params param-key])))
+  (let [val (-> (get-pattern pattern-key)
+                deref
+                (get-in [:params param-key]))]
+    ; FIXME Function current-value isn't quite right since it ignores time
+    (get-value nil val nil)))
+
+
+
+(defrecord PatternEnv [pattern-key start-time env-stages is-looped]
+  PatternParam
+  (set-pattern-param [pat-env key val]
+    (-> (merge pat-env {key val})
+        map->PatternEnv))
+  (get-pattern-param [pat-env cur-time]
+    (if (some nil? (vals pat-env)) (log/error "PatternEnv has nil values: " pat-env))
+    (let [elapsed-time (/ (- cur-time start-time) 1000.0)
+          tot-env-time (shp/env-total-dur env-stages)]
+      (if (or is-looped (< elapsed-time tot-env-time))
+        (shp/signal-at env-stages (mod elapsed-time tot-env-time))
+        nil))))
+
+(defn pattern-env [env is-looped] (PatternEnv. nil nil (shp/env-stages env) is-looped))
 
 
 
 
 (comment
-  (if (ot/server-disconnected?) (ot/connect-external-server 4445))
+  (do
+    (if (ot/server-disconnected?) (ot/connect-external-server 4445))
 
-  (ot/defsynth gabor [out-bus [0 :ir] freq [440 :ir] sustain [1 :ir] pan [0.0 :ir] amp [0.1 :ir] width [0.25 :ir]]
-               (let [env (ot/lf-gauss:ar sustain width :loop 0 :action ot/FREE)
-                     half-pi (* 0.5 (. Math PI))
-                     son (* env (ot/f-sin-osc:ar freq half-pi))]
-                 (ot/offset-out:ar out-bus (ot/pan2:ar son pan amp))))
+    (ot/defsynth gabor [out-bus [0 :ir] freq [440 :ir] sustain [1 :ir] pan [0.0 :ir] amp [0.1 :ir] width [0.25 :ir]]
+                 (let [env (ot/lf-gauss:ar sustain width :loop 0 :action ot/FREE)
+                       half-pi (* 0.5 (. Math PI))
+                       son (* env (ot/f-sin-osc:ar freq half-pi))]
+                   (ot/offset-out:ar out-bus (ot/pan2:ar son pan amp))))
 
-  (init {:gabor1
-         {:synth  gabor
-          :params {:out-bus        0
-                   :freq           (cycle [440 220])
-                   :sustain        0.1
-                   :pan            0.0
-                   :amp            0.1
-                   :width          0.25
-                   :dur            1000
-                   :staging-period 2000}}})
+    (init {:gabor1
+           {:synth  gabor
+            :params {:out-bus        0
+                     ; :freq           (cycle [440 220])
+                     :freq            (pattern-env (ot/envelope [440 880] [4] :exp) false)
+                     :sustain        0.1
+                     :pan            0.0
+                     :amp            0.1
+                     :width          0.25
+                     :dur            50
+                     :staging-period 2000}}}))
   (start-pattern (ot/now) :gabor1)
+  (change-pattern :gabor1 [:freq (pattern-env (ot/envelope [440 880 660] [4 3] :exp) false)])
   (change-pattern :gabor1 [:dur 25])
   (change-pattern :gabor1 [:dur 1000])
-  (change-pattern :gabor1 [:sustain (map #(/ % (current-value :gabor :freq)) (range 10 0 -1))])
-  (stop-pattern :gabor1))
+  (change-pattern :gabor1 [:sustain (map #(/ % (current-value :gabor1 :freq)) (range 10 0 -1))])
+  (reset-pattern! :gabor1)
+  (stop-pattern :gabor1)
+
+  (shp/env-stages (ot/envelope [440 880 660] [4 3] :exp))
+  (shp/view-env (ot/envelope [440 880 660] [4 3] :exp) 700))

@@ -1,11 +1,11 @@
 (ns overtime.shapes-test
   (:require [clojure.test :refer :all]
-            [overtime.shapes :as shapes]
+            [overtime.shapes :as shp]
             [overtone.sc.envelope :as ot]))
 
 (defn- rounded-signal
   [env length]
-  (->> (shapes/env->signals env length)
+  (->> (shp/env->signals env length)
        (map #(Math/round (* 1000.0 %)))))
 
 (deftest env->signal
