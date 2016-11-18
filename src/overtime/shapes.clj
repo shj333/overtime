@@ -5,72 +5,62 @@
 (defonce ^:private half-pi (* 0.5 Math/PI))
 
 
-(defmulti gen-shape (fn [stage _pos] (nth stage 4)))
+(defmulti gen-shape (fn [[_beg-level _end-level _start-time _end-time shape-id _curvature] _pos] shape-id))
 
 (defmethod gen-shape (ot/ENV-SHAPES :step)
-  [stage _pos]
-  (let [[_y1 y2] stage]
-    y2))
+  [[_beg-level end-level] _pos]
+  end-level)
 
 (defmethod gen-shape (ot/ENV-SHAPES :hold)
-  [stage pos]
-  (let [[y1 y2] stage]
-    (if (< pos 1) y1 y2)))
+  [[beg-level end-level] pos]
+  (if (< pos 1) beg-level end-level))
 
 (defmethod gen-shape (ot/ENV-SHAPES :linear)
-  [stage pos]
-  (let [[y1 y2] stage]
-    (+ y1
-       (* pos (- y2 y1)))))
+  [[beg-level end-level] pos]
+  (+ beg-level (* pos (- end-level beg-level))))
 
 (defmethod gen-shape (ot/ENV-SHAPES :exp)
-  [stage pos]
-  (let [[y1 y2] stage
-        limit (max 0.0001 y1)]
-    (* limit (Math/pow (/ y2 limit) pos))))
+  [[beg-level end-level] pos]
+  (let [limit (max 0.0001 beg-level)]
+    (* limit (Math/pow (/ end-level limit) pos))))
 
 (defmethod gen-shape (ot/ENV-SHAPES :sine)
-  [stage pos]
-  (let [[y1 y2] stage]
-    (+ y1
-       (* (- y2 y1)
-          (+ (* -1 (Math/cos (* Math/PI pos)) 0.5) 0.5)))))
+  [[beg-level end-level] pos]
+  (+ beg-level
+     (* (- end-level beg-level)
+        (+ (* -1 (Math/cos (* Math/PI pos)) 0.5) 0.5))))
 
 (defmethod gen-shape (ot/ENV-SHAPES :welch)
-  [stage pos]
-  (let [[y1 y2] stage]
-    ; From SC src: lang/LangPrimSource/PyrArrayPrimitives.cpp, see case shape_Welch
-    (if (< y1 y2)
-      (+ y1 (* (- y2 y1) (Math/sin (* half-pi pos))))
-      (- y2 (* (- y2 y1) (Math/sin (- half-pi (* half-pi pos))))))))
+  [[beg-level end-level] pos]
+  ; From SC src: lang/LangPrimSource/PyrArrayPrimitives.cpp, see case shape_Welch
+  (if (< beg-level end-level)
+    (+ beg-level (* (- end-level beg-level) (Math/sin (* half-pi pos))))
+    (- end-level (* (- end-level beg-level) (Math/sin (- half-pi (* half-pi pos)))))))
 
 ; FIXME Overtone code does not use a keyword for curve but instead uses 5
 (defmethod gen-shape 5
-  [stage pos]
-  (let [[y1 y2 _ _ _ curvature] stage]
-    (if (< (Math/abs curvature) 0.0001)
-      (+ (* pos (- y2 y1))
-         y1)
-      (let [denominator (- 1.0 (Math/exp curvature))
-            numerator (- 1.0 (Math/exp (* pos curvature)))]
-        (+ y1
-           (* (- y2 y1) (/ numerator denominator)))))))
+  [[beg-level end-level _ _ _ curvature] pos]
+  (if (< (Math/abs curvature) 0.0001)
+    (+ (* pos (- end-level beg-level))
+       beg-level)
+    (let [denominator (- 1.0 (Math/exp curvature))
+          numerator (- 1.0 (Math/exp (* pos curvature)))]
+      (+ beg-level
+         (* (- end-level beg-level) (/ numerator denominator))))))
 
 (defmethod gen-shape (ot/ENV-SHAPES :squared)
-  [stage pos]
-  (let [[y1 y2] stage
-        y1-s (Math/sqrt y1)
-        y2-s (Math/sqrt y2)
-        yp (+ y1-s (* pos (- y2-s y1-s)))]
-    (* yp yp)))
+  [[beg-level end-level] pos]
+  (let [beg-level-sroot (Math/sqrt beg-level)
+        end-level-sroot (Math/sqrt end-level)
+        val (+ beg-level-sroot (* pos (- end-level-sroot beg-level-sroot)))]
+    (* val val)))
 
 (defmethod gen-shape (ot/ENV-SHAPES :cubed)
-  [stage pos]
-  (let [[y1 y2] stage]
-    (let [y1-c (Math/pow y1 0.3333333)
-          y2-c (Math/pow y2 0.3333333)
-          yp (+ y1-c (* pos (- y2-c y1-c)))]
-      (* yp yp yp))))
+  [[beg-level end-level] pos]
+  (let [beg-level-cubed (Math/pow beg-level 0.3333333)
+        end-level-cubed (Math/pow end-level 0.3333333)
+        val (+ beg-level-cubed (* pos (- end-level-cubed beg-level-cubed)))]
+    (* val val val)))
 
 
 
