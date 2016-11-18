@@ -2,6 +2,8 @@
   (:require [incanter core charts datasets]
             [overtone.sc.envelope :as ot]))
 
+(defonce ^:private half-pi (* 0.5 Math/PI))
+
 
 (defmulti gen-shape (fn [stage _pos] (nth stage 4)))
 
@@ -36,11 +38,11 @@
 
 (defmethod gen-shape (ot/ENV-SHAPES :welch)
   [stage pos]
-  (let [[y1 y2] stage
-        pos (if (< y1 y2) pos (- 1.0 pos))]
-    (+ y1
-       (* (- y2 y1)
-          (Math/sin (* Math/PI 0.5 pos))))))
+  (let [[y1 y2] stage]
+    ; From SC src: lang/LangPrimSource/PyrArrayPrimitives.cpp, see case shape_Welch
+    (if (< y1 y2)
+      (+ y1 (* (- y2 y1) (Math/sin (* half-pi pos))))
+      (- y2 (* (- y2 y1) (Math/sin (- half-pi (* half-pi pos))))))))
 
 ; FIXME Overtone code does not use a keyword for curve but instead uses 5
 (defmethod gen-shape 5
