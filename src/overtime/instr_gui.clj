@@ -123,7 +123,7 @@
 (defn set-instr
   [frame-key instr]
   (log/debug "Set instr for" frame-key "to" instr)
-  (swap! frames-data update frame-key assoc :instr instr))
+  (swap! frames-data assoc-in [frame-key :instr] instr))
 
 (comment
   (def listboxes {:grain-env [:guass :expodec :sinc1 :sinc2 :sinc3 :sinc4 :sinc5 :sinc6 :sinc7 :sinc8 :sinc9 :sinc10]
