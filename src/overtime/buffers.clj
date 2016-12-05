@@ -33,7 +33,7 @@
 
 (defn add-buffers
   [category new-buffers]
-  (swap! buffers assoc category new-buffers))
+  (swap! buffers update category merge new-buffers))
 
 (defn view-buffer
   "View buffer as X/Y plot using Incanter view"
