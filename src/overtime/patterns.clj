@@ -29,20 +29,20 @@
 ; Event Param Computation
 ;
 (defprotocol PatternParam
-  (set-pattern-param [p-param key val])
+  (set-start-time [p-param time])
   (get-pattern-param [p-param time]))
 
 (defn- pattern-param? [param] (satisfies? PatternParam param))
 
-(defn- setup-param
-  [pat-param key val]
+(defn- init-pat-param
+  [pat-param time]
   (if (pattern-param? pat-param)
-    (set-pattern-param pat-param key val)
+    (set-start-time pat-param time)
     pat-param))
 
-(defn- setup-params
-  [params key val]
-  (into {} (for [[k pat-param] params] [k (setup-param pat-param key val)])))
+(defn- init-pat-params
+  [pat-params time]
+  (into {} (for [[k pat-param] pat-params] [k (init-pat-param pat-param time)])))
 
 (defn- get-value
   [key val time]
@@ -51,7 +51,7 @@
     (pattern-param? val) (get-pattern-param val time)
     ; If value is a lazy sequence, get first one in sequence
     (seq? val) (first val)
-    ; If a keyword was given, this is a sound parameter
+    ; If a keyword was given, this is a sound parameter (as opposed to a synth)
     key (snd/sound-param key val)
     ; Otherwise use the param value as is
     :else val))
@@ -82,16 +82,18 @@
   [pattern-key & {:as params}]
   (let [pattern (get-pattern pattern-key)]
     (log/debug "Enqueueing pattern changes for" (:name @pattern) "to:" (print-params params))
-    (swap! pattern update-in [:new-params] merge params)
+    (swap! pattern update :new-params merge params)
     true))
 
 (defn- update-pattern
   [derefed-pattern time]
   (log/debug "Changing pattern" (:name derefed-pattern) "to:" (print-params (:new-params derefed-pattern)))
-  ; Merge in queued param changes and then reset queue to empty
-  (-> derefed-pattern
-      (update-in [:params] merge (setup-params (:new-params derefed-pattern) :start-time time))
-      (assoc :new-params {})))
+  ; Set start time in new pattern params in case any are a PatternParam protocol
+  (let [new-params (init-pat-params (:new-params derefed-pattern) time)]
+    ; Merge in queued param changes and then reset queue to empty
+    (-> derefed-pattern
+        (update :params merge new-params)
+        (assoc :new-params {}))))
 
 (defn- dequeue-param-changes
   ; Pattern is de-referenced since this function is called by swap!
@@ -105,11 +107,6 @@
   [derefed-pattern]
   (log/debug "Resetting pattern" (:name derefed-pattern) "to original synth and params")
   (assoc derefed-pattern :synth (:orig-synth derefed-pattern) :params (:orig-params derefed-pattern) :reset-flag false))
-
-(defn- set-start-time
-  ; Pattern is de-referenced since this function is called by swap!
-  [derefed-pattern time]
-  (assoc derefed-pattern :params (setup-params (:params derefed-pattern) :start-time time)))
 
 
 ;
@@ -257,9 +254,8 @@
   ; All pattern atoms are stored in a containing atom called "patterns " so that we can manage all the created patterns across threads.
   ; The new-params property of the pattern hash allows changing of the pattern as the pattern is being executed; when pattern changes
   ; need to occur, the changes are kept in new-params until it is safe to merge them during execution of the pattern.
-  (let [merged-params (-> (merge dflt-pattern-params params)
-                          (setup-params :pattern-key pattern-key))]
-    (->> (atom {:name (name pattern-key) :synth synth :params merged-params :new-params {} :orig-synth synth :orig-params merged-params})
+  (let [merged-params (merge dflt-pattern-params params)]
+    (->> (atom {:key pattern-key :name (name pattern-key) :synth synth :params merged-params :new-params {} :orig-synth synth :orig-params merged-params})
          (swap! patterns assoc pattern-key))
     (log/debug "Created pattern" pattern-key)
     true))
@@ -306,7 +302,7 @@
   (enqueue-param-changes pattern-key play-param-key true)
 
   ; Set start time in any PatternParam's
-  (swap! (get-pattern pattern-key) set-start-time time)
+  (swap! (get-pattern pattern-key) update :params init-pat-params time)
 
   (log/info "Starting pattern" pattern-key)
   (play-pattern time pattern-key))
@@ -340,26 +336,36 @@
   (let [val (-> (get-pattern pattern-key)
                 deref
                 (get-in [:params param-key]))]
-    ; FIXME Function current-value isn't quite right since it ignores time
-    (get-value nil val nil)))
+    (get-value nil val (ot/now))))
 
 
 
-(defrecord PatternEnv [pattern-key start-time env-stages is-looped]
+(defrecord PatternEnv [env-stages total-env-time is-looped start-time]
   PatternParam
-  (set-pattern-param [pat-env key val]
-    (-> (merge pat-env {key val})
+  (set-start-time [pat-env time]
+    (-> (assoc pat-env :start-time time)
         map->PatternEnv))
   (get-pattern-param [pat-env cur-time]
     (if (some nil? (vals pat-env)) (log/error "PatternEnv has nil values: " pat-env))
-    (let [elapsed-time (/ (- cur-time start-time) 1000.0)
-          tot-env-time (shp/env-total-dur env-stages)]
-      (if (or is-looped (< elapsed-time tot-env-time))
-        (shp/signal-at env-stages (mod elapsed-time tot-env-time))
+    (log/debug pat-env ", cur-time: " cur-time)
+    (let [elapsed-time (/ (- cur-time start-time) 1000.0)]
+      (if (or is-looped (< elapsed-time total-env-time))
+        (shp/signal-at env-stages (mod elapsed-time total-env-time))
         nil))))
 
-(defn pattern-env [env is-looped] (PatternEnv. nil nil (shp/env-stages env) is-looped))
+(defn pattern-env
+  [env is-looped]
+  (let [env-stages (shp/env-stages env)
+        total-env-time (shp/env-total-dur env-stages)]
+    (PatternEnv. env-stages total-env-time is-looped nil)))
 
+(defmethod print-method PatternEnv
+  [pat-env ^java.io.Writer w]
+  (.write w (pr-str "PatternEnv [stages:" (:env-stages pat-env)
+                    "total time:" (:total-env-time pat-env)
+                    "looped:" (:is-looped pat-env)
+                    "start:" (:start-time pat-env)
+                    "]")))
 
 
 
@@ -377,7 +383,7 @@
            {:synth  gabor
             :params {:out-bus        0
                      ; :freq           (cycle [440 220])
-                     :freq            (pattern-env (ot/envelope [440 880] [4] :exp) false)
+                     :freq           (pattern-env (ot/envelope [440 880] [4] :exp) false)
                      :sustain        0.1
                      :pan            0.0
                      :amp            0.1
@@ -385,7 +391,8 @@
                      :dur            50
                      :staging-period 2000}}}))
   (start-pattern (ot/now) :gabor1)
-  (change-pattern :gabor1 [:freq (pattern-env (ot/envelope [440 880 660] [4 3] :exp) false)])
+  (change-pattern :gabor1 [:freq (pattern-env (ot/envelope [440 880 660] [4 3] :exp) true)])
+  (change-pattern :gabor1 [:sustain (pattern-env (ot/envelope [0.005 0.5 0.005] [3 5] :exp) true)])
   (change-pattern :gabor1 [:dur 25])
   (change-pattern :gabor1 [:dur 1000])
   (change-pattern :gabor1 [:sustain (map #(/ % (current-value :gabor1 :freq)) (range 10 0 -1))])
