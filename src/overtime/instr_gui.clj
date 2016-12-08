@@ -77,17 +77,28 @@
      [slider ""]
      [textbox "width 100:100:100, wrap"]]))
 
+(defn- make-button
+  [instr cmd]
+  (let [button (ss/button :text (name cmd))]
+    (ss/listen button :action (fn [_e] (cmd/do-sound-cmd [cmd instr])))
+    [button ""]))
+
+(defn- make-button-row
+  [instr]
+  (map #(make-button instr %) [:play :stop]))
+
 (defn- make-panel
-  [frame-key listboxes sliders]
+  [frame-key listboxes sliders instr]
   (let [listbox-rows (mapcat make-listbox-row (repeat frame-key) listboxes)
-        slider-rows (mapcat make-slider-row (repeat frame-key) sliders)]
+        slider-rows (mapcat make-slider-row (repeat frame-key) sliders)
+        button-row (make-button-row instr)]
     (mig/mig-panel :constraints ["" "" ""]
-                   :items (concat listbox-rows slider-rows))))
+                   :items (concat listbox-rows slider-rows button-row))))
 
 (defn show
   [frame-key & {:keys [title listboxes sliders instr loc-x loc-y] :or {title "Instr GUI" listboxes [] sliders [] loc-x 0 loc-y 0}}]
   (let [f (ss/frame :title title :content "Placeholder...")
-        p (make-panel frame-key listboxes sliders)]
+        p (make-panel frame-key listboxes sliders instr)]
     (log/debug "Showing GUI for" frame-key ", list boxes:" listboxes ", sliders:" sliders ", instr:" instr)
     (ss/config! f :content p)
     (-> f ss/pack! ss/show!)
@@ -126,14 +137,15 @@
   (swap! frames-data assoc-in [frame-key :instr] instr))
 
 (comment
-  (def listboxes {:grain-env [:guass :expodec :sinc1 :sinc2 :sinc3 :sinc4 :sinc5 :sinc6 :sinc7 :sinc8 :sinc9 :sinc10]
-                  :pan       [:pan-left :pan-right :pan-center]})
-  (def sliders {:grain-dur {:min 0.05 :max 2.0 :init-val 0.05 :slider-val-mult 100.0}
-                :freq      {:min 10 :max 20000 :init-val 100}})
-  (show key
-        :title "Test GUI"
-        :listboxes listboxes
-        :sliders sliders
-        :loc-x 2600
-        :loc-y 200
-        :instr :foo))
+  (do
+    (def listboxes {:grain-env [:guass :expodec :sinc1 :sinc2 :sinc3 :sinc4 :sinc5 :sinc6 :sinc7 :sinc8 :sinc9 :sinc10]
+                    :pan       [:pan-left :pan-right :pan-center]})
+    (def sliders {:grain-dur {:min 0.05 :max 2.0 :init-val 0.05 :slider-val-mult 100.0}
+                  :freq      {:min 10 :max 20000 :init-val 100}})
+    (show key
+          :title "Test GUI"
+          :listboxes listboxes
+          :sliders sliders
+          :loc-x 2600
+          :loc-y 200
+          :instr :foo)))
