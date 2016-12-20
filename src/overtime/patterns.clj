@@ -37,13 +37,10 @@
   PatternParam
   (set-start-time [p-param _time] p-param)
   (get-p-param-val [p-param param-key _time]
-    (cond
-      ; If value is a lazy sequence, get first one in sequence
-      (seq? p-param) (first p-param)
-      ; If a keyword was given, this is a sound parameter (as opposed to a synth)
-      param-key (snd/sound-param param-key p-param)
-      ; Otherwise use the param value as is
-      :else p-param))
+    ; If value is a lazy sequence, get first one in sequence, otherwise get sound parameter
+    (if (seq? p-param)
+      (first p-param)
+      (snd/sound-param param-key p-param)))
   (get-p-param-next [p-param] (if (seq? p-param) (next p-param) p-param)))
 
 (extend-type nil
