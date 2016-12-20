@@ -26,53 +26,95 @@
 
 
 ;
-; Event Param Computation
+; Pattern Param Computation
 ;
 (defprotocol PatternParam
   (set-start-time [p-param time])
-  (get-pattern-param [p-param time]))
+  (get-p-param-val [p-param param-key time])
+  (get-p-param-next [p-param]))
 
-(defn- pattern-param? [param] (satisfies? PatternParam param))
+(extend-type Object
+  PatternParam
+  (set-start-time [p-param _time] p-param)
+  (get-p-param-val [p-param param-key _time]
+    (cond
+      ; If value is a lazy sequence, get first one in sequence
+      (seq? p-param) (first p-param)
+      ; If a keyword was given, this is a sound parameter (as opposed to a synth)
+      param-key (snd/sound-param param-key p-param)
+      ; Otherwise use the param value as is
+      :else p-param))
+  (get-p-param-next [p-param] (if (seq? p-param) (next p-param) p-param)))
 
-(defn- init-pat-param
-  [pat-param time]
-  (if (pattern-param? pat-param)
-    (set-start-time pat-param time)
-    pat-param))
+(extend-type nil
+  PatternParam
+  (set-start-time [p-param _time] p-param)
+  (get-p-param-val [_p-param _param-key _time] nil)
+  (get-p-param-next [_p-param] nil))
+
+(defrecord EnvParam [env-stages total-env-time is-looped transform-f start-time]
+  PatternParam
+  (set-start-time [env-param time]
+    (-> (assoc env-param :start-time time)
+        map->EnvParam))
+  (get-p-param-val [env-param _param-key cur-time]
+    (if (some nil? (vals env-param)) (log/error "EnvParam has nil values: " env-param))
+    (log/debug env-param ", cur-time: " cur-time)
+    (let [elapsed-time (/ (- cur-time start-time) 1000.0)]
+      (if (or is-looped (< elapsed-time total-env-time))
+        (->> (mod elapsed-time total-env-time)
+             (shp/signal-at env-stages)
+             transform-f)
+        nil)))
+  (get-p-param-next [p-param] p-param))
+
+(defn env-param
+  ([env is-looped] (env-param env is-looped identity))
+  ([env is-looped transform-f]
+   (let [env-stages (shp/env-stages env)
+         total-env-time (shp/env-total-dur env-stages)]
+     (EnvParam. env-stages total-env-time is-looped transform-f nil))))
+
+(defmethod print-method EnvParam
+  [pat-env ^java.io.Writer w]
+  (.write w (pr-str "EnvParam [stages:" (:env-stages pat-env)
+                    "total time:" (:total-env-time pat-env)
+                    "looped:" (:is-looped pat-env)
+                    "start:" (:start-time pat-env)
+                    "]")))
+
+; TODO Another record ParamStochastic similar to EnvParam that uses envelope to get chance of event being
+; TODO played (env vals 0.0-1.0, where 0 means rest and 1.0 means play and otherwise pct of time that event
+; TODO is played (see Roads Pulsar Synth paper). Maybe not needed now that we have transform-f in EnvParam?
+
+; TODO Figure out where burst-seq func should live (used for setting burst ratio of pattern -- see Roads Pulsar Synth paper)
+; TODO Maybe impl this as a record BurstRatioParam that impls PatternParam protocol?
+(defn burst-seq
+  [b r]
+  (cycle (concat (repeat b 0) (repeat r 1))))
+
 
 (defn- init-pat-params
   [pat-params time]
-  (into {} (for [[k pat-param] pat-params] [k (init-pat-param pat-param time)])))
+  (into {} (for [[k pat-param] pat-params] [k (set-start-time pat-param time)])))
 
-(defn- get-value
-  [key val time]
-  (cond
-    ; If value supports PatternParam protocol, evaluate with the protocol
-    (pattern-param? val) (get-pattern-param val time)
-    ; If value is a lazy sequence, get first one in sequence
-    (seq? val) (first val)
-    ; If a keyword was given, this is a sound parameter (as opposed to a synth)
-    key (snd/sound-param key val)
-    ; Otherwise use the param value as is
-    :else val))
+; TODO Instead of process-lazy-list, make everything a PatternParam protocol, use repeat function and add get-next-params function to proctocol
+(defn- process-lazy-list [f val] (if (seq? val) (f val) val))
 
+; TODO Should synth just be part of params instead of separate functionality?
 (defn- this-synth
   [synth]
-  ; Dereference synth value if synth is defined as a var
-  (let [this-synth-val (get-value nil synth nil)]
+  (let [this-synth-val (process-lazy-list first synth)]
+    ; Dereference synth value if synth is defined as a var
     (if (var? this-synth-val) @this-synth-val this-synth-val)))
 
-(defn- this-synth-params [time params] (into {} (for [[k v] params] [k (get-value k v time)])))
+(defn- this-synth-params
+  [time params]
+  (into {} (for [[param-key p-param] params] [param-key (get-p-param-val p-param param-key time)])))
 
+(defn- next-synth [synth] (process-lazy-list next synth))
 
-(defn- get-next-values
-  [val]
-  ; If value is a lazy sequence, get rest of sequence, otherwise just use value as is
-  (if (seq? val) (next val) val))
-
-(defn- next-synth [synth] (get-next-values synth))
-
-(defn- next-synth-params [params] (into {} (for [[k v] params] [k (get-next-values v)])))
+(defn- next-synth-params [params] (into {} (for [[param-key p-param] params] [param-key (get-p-param-next p-param)])))
 
 
 ;
@@ -126,16 +168,19 @@
     (log/debug "Current event for pattern:" name ", time:" time ", synth:" (get-in this-synth [:sdef :name]) ", params:" flat-params)
     (swap! pattern assoc :synth next-synth :params next-params)
 
-    {:synth         this-synth
-     :params        flat-params
-     :time          time
-     :next-time     (+ time this-dur)
-     :stage-elapsed (+ stage-elapsed this-dur)}))
+    ; Pass back event data and pattern so we can iterate over this function and create a lazy sequence
+    [{:synth         this-synth
+      :params        flat-params
+      :rest          (:rest this-params)
+      :time          time
+      :next-time     (+ time this-dur)
+      :stage-elapsed (+ stage-elapsed this-dur)}
+     pattern]))
 
 (defn- gen-stop-event
-  [pattern]
+  [pattern-name]
   ; Return nil if pattern is complete indicating that pattern should stop playing
-  (log/debug "Pattern complete:" (:name @pattern))
+  (log/debug "Pattern complete:" pattern-name)
   nil)
 
 (defn- get-pattern-event
@@ -143,10 +188,8 @@
   ; Keep generating pattern events until one of the pattern params is nil
   (let [this-params (this-synth-params (:next-time prev-event) (:params @pattern))]
     (if (some nil? (vals this-params))
-      (gen-stop-event pattern)
-
-      ; Pass back event data and pattern so we can iterate over this function and create a lazy sequence
-      [(gen-event prev-event pattern this-params) pattern])))
+      (gen-stop-event (:name @pattern))
+      (gen-event prev-event pattern this-params))))
 
 (defn- is-not-stage-complete?
   [staging-period event]
@@ -194,16 +237,18 @@
       true param)))
 
 (defn- do-pattern-event
-  [time synth params]
-  ; Set up a single pattern event to be played on SC server. Use "/s_new" OSC command instead of calling synth function to cut down
-  ; on overhead. This efficiency helps when dealing with microsound-based patterns.
-  (if-let [synth-name (get-in synth [:sdef :name])]
-    (ot/at time (apply ot/snd "/s_new" synth-name -1 0 0 (map convert-for-s_new params)))
-    (if-not (nil? synth) (log/warn "Unknown synth:" synth))))
+  [time synth params rest]
+  ; TODO Need some sort of note (API Doc?) for how :rest works within pattern
+  (if-not (= 1 rest)
+    ; Set up a single pattern event to be played on SC server. Use "/s_new" OSC command instead of calling synth function to cut down
+    ; on overhead. This efficiency helps when dealing with microsound-based patterns.
+    (if-let [synth-name (get-in synth [:sdef :name])]
+      (ot/at time (apply ot/snd "/s_new" synth-name -1 0 0 (map convert-for-s_new params)))
+      (if-not (nil? synth) (log/warn "Unknown synth:" synth)))))
 
 (defn- do-pattern-events
   [events]
-  (doseq [{:keys [synth params time]} events] (do-pattern-event time synth params))
+  (doseq [{:keys [synth params time rest]} events] (do-pattern-event time synth params rest))
   events)
 
 (defn- setup-next-stage
@@ -333,39 +378,10 @@
 (defn current-value
   "Returns the current value of the given parameter within the pattern"
   [pattern-key param-key]
-  (let [val (-> (get-pattern pattern-key)
+  (let [p-param (-> (get-pattern pattern-key)
                 deref
                 (get-in [:params param-key]))]
-    (get-value nil val (ot/now))))
-
-
-
-(defrecord PatternEnv [env-stages total-env-time is-looped start-time]
-  PatternParam
-  (set-start-time [pat-env time]
-    (-> (assoc pat-env :start-time time)
-        map->PatternEnv))
-  (get-pattern-param [pat-env cur-time]
-    (if (some nil? (vals pat-env)) (log/error "PatternEnv has nil values: " pat-env))
-    (log/debug pat-env ", cur-time: " cur-time)
-    (let [elapsed-time (/ (- cur-time start-time) 1000.0)]
-      (if (or is-looped (< elapsed-time total-env-time))
-        (shp/signal-at env-stages (mod elapsed-time total-env-time))
-        nil))))
-
-(defn pattern-env
-  [env is-looped]
-  (let [env-stages (shp/env-stages env)
-        total-env-time (shp/env-total-dur env-stages)]
-    (PatternEnv. env-stages total-env-time is-looped nil)))
-
-(defmethod print-method PatternEnv
-  [pat-env ^java.io.Writer w]
-  (.write w (pr-str "PatternEnv [stages:" (:env-stages pat-env)
-                    "total time:" (:total-env-time pat-env)
-                    "looped:" (:is-looped pat-env)
-                    "start:" (:start-time pat-env)
-                    "]")))
+    (get-p-param-val p-param param-key (ot/now))))
 
 
 
@@ -383,7 +399,7 @@
            {:synth  gabor
             :params {:out-bus        0
                      ; :freq           (cycle [440 220])
-                     :freq           (pattern-env (ot/envelope [440 880] [4] :exp) false)
+                     :freq           (env-param (ot/envelope [440 880] [4] :exp) false)
                      :sustain        0.1
                      :pan            0.0
                      :amp            0.1
@@ -391,8 +407,8 @@
                      :dur            50
                      :staging-period 2000}}}))
   (start-pattern (ot/now) :gabor1)
-  (change-pattern :gabor1 [:freq (pattern-env (ot/envelope [440 880 660] [4 3] :exp) true)])
-  (change-pattern :gabor1 [:sustain (pattern-env (ot/envelope [0.005 0.5 0.005] [3 5] :exp) true)])
+  (change-pattern :gabor1 [:freq (env-param (ot/envelope [440 880 660] [4 3] :exp) true)])
+  (change-pattern :gabor1 [:sustain (env-param (ot/envelope [0.005 0.5 0.005] [3 5] :exp) true)])
   (change-pattern :gabor1 [:dur 25])
   (change-pattern :gabor1 [:dur 1000])
   (change-pattern :gabor1 [:sustain (map #(/ % (current-value :gabor1 :freq)) (range 10 0 -1))])
