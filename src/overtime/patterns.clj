@@ -30,13 +30,13 @@
 ;
 (defprotocol PatternParam
   (set-start-time [p-param time])
-  (get-p-param-val [p-param param-key time])
+  (get-p-param-val [p-param param-key time cur-params-map])
   (get-p-param-next [p-param]))
 
 (extend-type Object
   PatternParam
   (set-start-time [p-param _time] p-param)
-  (get-p-param-val [p-param param-key _time]
+  (get-p-param-val [p-param param-key _time _cur-params-map]
     ; If value is a lazy sequence, get first one in sequence, otherwise get sound parameter
     (if (seq? p-param)
       (first p-param)
@@ -46,7 +46,7 @@
 (extend-type nil
   PatternParam
   (set-start-time [p-param _time] p-param)
-  (get-p-param-val [_p-param _param-key _time] nil)
+  (get-p-param-val [_p-param _param-key _time _cur-params-map] nil)
   (get-p-param-next [_p-param] nil))
 
 (defrecord EnvParam [env-stages total-env-time is-looped transform-f start-time]
@@ -54,7 +54,7 @@
   (set-start-time [env-param time]
     (-> (assoc env-param :start-time time)
         map->EnvParam))
-  (get-p-param-val [env-param _param-key cur-time]
+  (get-p-param-val [env-param _param-key cur-time _cur-params-map]
     (if (some nil? (vals env-param)) (log/error "EnvParam has nil values: " env-param))
     (log/debug env-param ", cur-time: " cur-time)
     (let [elapsed-time (/ (- cur-time start-time) 1000.0)]
@@ -79,6 +79,22 @@
                     "looped:" (:is-looped pat-env)
                     "start:" (:start-time pat-env)
                     "]")))
+
+
+(defrecord FuncParam [f start-time]
+  PatternParam
+  (set-start-time [env-param time]
+    (-> (assoc env-param :start-time time)
+        map->FuncParam))
+  (get-p-param-val
+    [_env-param param-key cur-time cur-params-map]
+    (if (some nil? (vals cur-params-map))
+      nil
+      (f param-key cur-time start-time cur-params-map)))
+  (get-p-param-next [p-param] p-param))
+
+(defn func-param [f] (FuncParam. f nil))
+
 
 ; TODO Another record ParamStochastic similar to EnvParam that uses envelope to get chance of event being
 ; TODO played (env vals 0.0-1.0, where 0 means rest and 1.0 means play and otherwise pct of time that event
@@ -107,7 +123,10 @@
 
 (defn- this-synth-params
   [time params]
-  (into {} (for [[param-key p-param] params] [param-key (get-p-param-val p-param param-key time)])))
+  (letfn [(add-param
+            [acc [param-key p-param]]
+            (merge acc {param-key (get-p-param-val p-param param-key time acc)}))]
+    (reduce add-param {} params)))
 
 (defn- next-synth [synth] (process-lazy-list next synth))
 
@@ -376,22 +395,21 @@
   "Returns the current value of the given parameter within the pattern"
   [pattern-key param-key]
   (let [p-param (-> (get-pattern pattern-key)
-                deref
-                (get-in [:params param-key]))]
-    (get-p-param-val p-param param-key (ot/now))))
+                    deref
+                    (get-in [:params param-key]))]
+    ; FIXME current-value function no longer works -- need to keep cur pattern param vals in pattern atom
+    (get-p-param-val p-param param-key (ot/now) {})))
 
 
 
 (comment
   (do
     (if (ot/server-disconnected?) (ot/connect-external-server 4445))
-
     (ot/defsynth gabor [out-bus [0 :ir] freq [440 :ir] sustain [1 :ir] pan [0.0 :ir] amp [0.1 :ir] width [0.25 :ir]]
                  (let [env (ot/lf-gauss:ar sustain width :loop 0 :action ot/FREE)
                        half-pi (* 0.5 (. Math PI))
                        son (* env (ot/f-sin-osc:ar freq half-pi))]
                    (ot/offset-out:ar out-bus (ot/pan2:ar son pan amp))))
-
     (init {:gabor1
            {:synth  gabor
             :params {:out-bus        0
@@ -403,6 +421,7 @@
                      :width          0.25
                      :dur            50
                      :staging-period 2000}}}))
+
   (start-pattern (ot/now) :gabor1)
   (change-pattern :gabor1 [:freq (env-param (ot/envelope [440 880 660] [4 3] :exp) true)])
   (change-pattern :gabor1 [:sustain (env-param (ot/envelope [0.005 0.5 0.005] [3 5] :exp) true)])
