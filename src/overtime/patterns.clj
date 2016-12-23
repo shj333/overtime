@@ -66,6 +66,7 @@
   (get-p-param-next [p-param] p-param))
 
 (defn env-param
+  ([env] (env-param env false))
   ([env is-looped] (env-param env is-looped identity))
   ([env is-looped transform-f]
    (let [env-stages (shp/env-stages env)
@@ -414,7 +415,7 @@
            {:synth  gabor
             :params {:out-bus        0
                      ; :freq           (cycle [440 220])
-                     :freq           (env-param (ot/envelope [440 880] [4] :exp) false)
+                     :freq           (env-param (ot/envelope [440 880] [4] :exp))
                      :sustain        0.1
                      :pan            0.0
                      :amp            0.1
