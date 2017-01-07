@@ -149,7 +149,7 @@
   (log/debug "Changing pattern" (:name derefed-pattern) "to:" (print-params (:new-params derefed-pattern)))
   ; Set start time in new pattern params in case any are a PatternParam protocol
   (let [new-params (init-pat-params (:new-params derefed-pattern) time)]
-    ; Merge in queued param changes and then reset queue to empty
+    ; Merge in queued param changes and flush queue of param changes
     (-> derefed-pattern
         (update :params merge new-params)
         (assoc :new-params {}))))

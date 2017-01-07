@@ -17,34 +17,20 @@
 ;
 ; Grain envelopes
 ;
-(defn- make-sinc-point
-  [sinc-num x length]
-  (let [val (* (u/num-lin-lin x 0 (dec length) (- 0 Math/PI) Math/PI) sinc-num)]
-    (/ (Math/sin val) val)))
-
-(defn- make-sinc
-  [sinc-num length]
-  (map #(make-sinc-point sinc-num % length) (range length)))
-
-(defn- make-sincs
-  [num-instances length]
-  (into {} (for [idx (range 1 (inc num-instances))] [(keyword (str "sinc" idx)) (make-sinc idx length)])))
-
 (defn- make-env-bufs [env-signals] (into {} (for [[k signals] env-signals] [k (buf/signals->buffer signals)])))
 
 
 (defonce env-data {:guass       (ot/env-sine)
                    :quasi-guass (ot/envelope [0, 1, 1, 0] [0.33, 0.34, 0.33] :sin)
                    :linear      (ot/envelope [0, 1, 1, 0] [0.33, 0.34, 0.33] :lin)
-                   ; FIXME View of welch env does not look right
                    :welch       (ot/envelope [0, 1, 1, 0] [0.33, 0.34, 0.33] :welch)
                    :expodec     (ot/envelope [1, 0.001] [1] :exp)
                    :rexpodec    (ot/envelope [0.001, 1] [1] :exp)
                    :perc1       (ot/env-perc 0.05 0.95)
                    :perc2       (ot/env-perc 0.1 0.9)})
 
-(defonce env-signals (merge (make-sincs 10 400)
-                            (into {} (for [[k env] env-data] [k (shp/env->signals env 400)]))))
+(defonce env-signals (merge (shp/make-sincs 10 400)
+                            (into {} (for [[k env] env-data] [k (shp/env->signals (shp/zero-last env) 400)]))))
 
 
 
